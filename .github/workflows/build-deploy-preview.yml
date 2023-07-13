@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     # Only run for PRs, not issue comments
     if: |
-      github.event.issue.pull_request || github.event.api-trigger.pr
+      github.event.issue.pull_request || github.event.client_payload.pr
     steps:
 
       - name: Slash Command Dispatch
