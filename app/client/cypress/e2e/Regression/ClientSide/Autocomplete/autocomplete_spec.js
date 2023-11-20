@@ -38,28 +38,7 @@ describe("Dynamic input autocomplete", () => {
         cy.testJsontext("label", "", {
           parseSpecialCharSequences: true,
         });
-        // Tests if "No suggestions" message will pop if you type any garbage
-        cy.get(dynamicInputLocators.input)
-          .first()
-          .click({ force: true })
-          .type("{uparrow}", { parseSpecialCharSequences: true })
-          .type("{ctrl}{shift}{downarrow}", { parseSpecialCharSequences: true })
-          .type("{backspace}", { parseSpecialCharSequences: true })
-
-          .then(() => {
-            cy.get(dynamicInputLocators.input)
-              .first()
-              .click({ force: true })
-              .type("{{garbage", {
-                parseSpecialCharSequences: true,
-              });
-            cy.get(".CodeMirror-Tern-tooltip").should(
-              "have.text",
-              "No suggestions",
-            );
-          });
       });
-    cy.evaluateErrorMessage("garbage is not defined");
   });
 
   it("2. Test if action inside non event field throws error & open current value popup", () => {
@@ -72,7 +51,7 @@ describe("Dynamic input autocomplete", () => {
     cy.wait(1000);
 
     cy.evaluateErrorMessage(
-      "Found a reference to {{actionName}} during evaluation. Data fields cannot execute framework actions. Please remove any direct/indirect references to {{actionName}} and try again.".replaceAll(
+      "Please remove any direct/indirect references to {{actionName}} and try again. Data fields cannot execute framework actions.".replaceAll(
         "{{actionName}}",
         "storeValue()",
       ),

@@ -9,8 +9,11 @@ import {
   locators,
   propPane,
   entityItems,
-  tedTestConfig,
+  dataManager,
 } from "../../../../support/Objects/ObjectsCore";
+import EditorNavigation, {
+  SidebarButton,
+} from "../../../../support/Pages/EditorNavigation";
 
 const successMessage = "Successful Trigger";
 const errorMessage = "Unsuccessful Trigger";
@@ -37,7 +40,7 @@ const clickButtonAndAssertLintError = (
 
   //Reload and Check for presence/ absence of lint error
   agHelper.RefreshPage();
-  // agHelper.AssertElementVisible(locators._visibleTextDiv("Explorer"));
+  // agHelper.AssertElementVisibility(locators._visibleTextDiv("Explorer"));
   // agHelper.Sleep(2500);
   entityExplorer.SelectEntityByName("Button1", "Widgets");
   shouldExist
@@ -60,6 +63,7 @@ describe("Linting", () => {
     cy.get("@dsName").then(($dsName) => {
       dsName = $dsName as unknown as string;
     });
+    EditorNavigation.ViaSidebar(SidebarButton.Pages);
   });
 
   it("1. TC 1927 - Shows correct lint error when Api is deleted or created", () => {
@@ -80,7 +84,9 @@ describe("Linting", () => {
     clickButtonAndAssertLintError(true);
 
     // create Api1
-    apiPage.CreateAndFillApi(tedTestConfig.mockApiUrl);
+    apiPage.CreateAndFillApi(
+      dataManager.dsValues[dataManager.defaultEnviorment].mockApiUrl,
+    );
 
     clickButtonAndAssertLintError(false);
 
@@ -94,7 +100,9 @@ describe("Linting", () => {
     clickButtonAndAssertLintError(true);
 
     // Re-create Api1
-    apiPage.CreateAndFillApi(tedTestConfig.mockApiUrl);
+    apiPage.CreateAndFillApi(
+      dataManager.dsValues[dataManager.defaultEnviorment].mockApiUrl,
+    );
 
     clickButtonAndAssertLintError(false);
   });
@@ -295,7 +303,9 @@ describe("Linting", () => {
         shouldCreateNewJSObj: true,
       },
     );
-    apiPage.CreateAndFillApi(tedTestConfig.mockApiUrl);
+    apiPage.CreateAndFillApi(
+      dataManager.dsValues[dataManager.defaultEnviorment].mockApiUrl,
+    );
 
     createMySQLDatasourceQuery();
     agHelper.RefreshPage(); //Since this seems failing a bit
@@ -336,22 +346,22 @@ describe("Linting", () => {
       });
 
       agHelper.AssertElementExist(locators._lintErrorElement);
-      entityExplorer.ExpandCollapseEntity("Libraries");
+      EditorNavigation.ViaSidebar(SidebarButton.Libraries);
       // install the library
       installer.OpenInstaller();
-      installer.installLibrary("uuidjs", "UUID");
+      installer.InstallLibrary("uuidjs", "UUID");
       installer.CloseInstaller();
+      entityExplorer.SelectEntityByName("JSObject3");
 
       agHelper.AssertElementAbsence(locators._lintErrorElement);
-
+      EditorNavigation.ViaSidebar(SidebarButton.Libraries);
       installer.uninstallLibrary("uuidjs");
-
+      entityExplorer.SelectEntityByName("JSObject3");
       agHelper.AssertElementExist(locators._lintErrorElement);
-      agHelper.Sleep(2000);
+      EditorNavigation.ViaSidebar(SidebarButton.Libraries);
       installer.OpenInstaller();
-      installer.installLibrary("uuidjs", "UUID");
+      installer.InstallLibrary("uuidjs", "UUID");
       installer.CloseInstaller();
-
       homePage.NavigateToHome();
 
       homePage.CreateNewApplication();

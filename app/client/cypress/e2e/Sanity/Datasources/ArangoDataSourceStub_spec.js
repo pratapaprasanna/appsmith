@@ -11,7 +11,7 @@ describe("Arango datasource test cases", function () {
       fixture: "testAction.json",
     }).as("testDatasource");
     cy.testSaveDatasource(false);
-    dataSources.DeleteDatasouceFromActiveTab("ArangoWithnoTrailing");
+    dataSources.DeleteDatasourceFromWithinDS("ArangoWithnoTrailing");
   });
 
   it("2. Create with trailing white spaces in host address and database name, test, save then delete a Arango datasource", function () {
@@ -39,6 +39,7 @@ describe("Arango datasource test cases", function () {
   it("4. Arango Default name change", () => {
     dataSources.NavigateToDSCreateNew();
     dataSources.CreatePlugIn("ArangoDB");
+    dataSources.FillArangoDSForm();
     agHelper
       .GetText(dataSources._databaseName, "val")
       .then(($dbName) => expect($dbName).to.eq("_system"));

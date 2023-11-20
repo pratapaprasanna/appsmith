@@ -18,7 +18,10 @@ import {
   getCurrentPageId,
   getIsSavingEntity,
 } from "selectors/editorSelectors";
-import { getJSCollection, getJSCollections } from "selectors/entitiesSelector";
+import {
+  getJSCollection,
+  getJSCollections,
+} from "@appsmith/selectors/entitiesSelector";
 import type {
   JSCollectionData,
   JSCollectionDataState,
@@ -40,8 +43,8 @@ import type {
   JSCollectionCreateUpdateResponse,
   RefactorAction,
   SetFunctionPropertyPayload,
-} from "api/JSActionAPI";
-import JSActionAPI from "api/JSActionAPI";
+} from "@appsmith/api/JSActionAPI";
+import JSActionAPI from "@appsmith/api/JSActionAPI";
 import ActionAPI from "api/ActionAPI";
 import {
   updateJSCollectionSuccess,
@@ -69,10 +72,10 @@ import { ENTITY_TYPE, PLATFORM_ERROR } from "entities/AppsmithConsole";
 import LOG_TYPE from "entities/AppsmithConsole/logtype";
 import type { FetchPageResponse } from "api/PageApi";
 import PageApi from "api/PageApi";
-import { updateCanvasWithDSL } from "sagas/PageSagas";
+import { updateCanvasWithDSL } from "@appsmith/sagas/PageSagas";
 import { set } from "lodash";
 import { updateReplayEntity } from "actions/pageActions";
-import { jsCollectionIdURL } from "RouteBuilder";
+import { jsCollectionIdURL } from "@appsmith/RouteBuilder";
 import type { ApiResponse } from "api/ApiResponses";
 import { shouldBeDefined } from "utils/helpers";
 import { ModalType } from "reducers/uiReducers/modalActionReducer";
@@ -80,12 +83,16 @@ import { requestModalConfirmationSaga } from "sagas/UtilSagas";
 import { UserCancelledActionExecutionError } from "sagas/ActionExecution/errorUtils";
 import { APP_MODE } from "entities/App";
 import { getAppMode } from "@appsmith/selectors/applicationSelectors";
-import type { EventLocation } from "utils/AnalyticsUtil";
+import type { EventLocation } from "@appsmith/utils/analyticsUtilTypes";
 import AnalyticsUtil from "utils/AnalyticsUtil";
 import { checkAndLogErrorsIfCyclicDependency } from "./helper";
 import { toast } from "design-system";
 import { setDebuggerSelectedTab, showDebugger } from "actions/debuggerActions";
 import { DEBUGGER_TAB_KEYS } from "components/editorComponents/Debugger/helpers";
+import { getDebuggerSelectedTab } from "selectors/debuggerSelectors";
+
+const CONSOLE_DOT_LOG_INVOCATION_REGEX =
+  /console.log[.call | .apply]*\s*\(.*?\)/gm;
 
 function* handleCreateNewJsActionSaga(
   action: ReduxAction<{ pageId: string; from: EventLocation }>,
@@ -244,7 +251,7 @@ function* handleEachUpdateJSCollection(update: JSUpdate) {
 export function* makeUpdateJSCollection(
   action: ReduxAction<Record<string, JSUpdate>>,
 ) {
-  const jsUpdates: Record<string, JSUpdate> = action.payload;
+  const jsUpdates: Record<string, JSUpdate> = action.payload || {};
 
   yield all(
     Object.keys(jsUpdates).map((key) =>
@@ -385,7 +392,14 @@ export function* handleExecuteJSFunctionSaga(data: {
     // open response tab in debugger on runnning or page load js action.
     if (window.location.pathname.includes(collectionId)) {
       yield put(showDebugger(true));
-      yield put(setDebuggerSelectedTab(DEBUGGER_TAB_KEYS.RESPONSE_TAB));
+
+      const debuggerSelectedTab = yield select(getDebuggerSelectedTab);
+
+      yield put(
+        setDebuggerSelectedTab(
+          debuggerSelectedTab || DEBUGGER_TAB_KEYS.RESPONSE_TAB,
+        ),
+      );
     }
     yield put({
       type: ReduxActionTypes.EXECUTE_JS_FUNCTION_SUCCESS,
@@ -470,11 +484,16 @@ export function* handleStartExecuteJSFunctionSaga(
       throw new UserCancelledActionExecutionError();
     }
   }
+
   AnalyticsUtil.logEvent("JS_OBJECT_FUNCTION_RUN", {
     name: action.name,
     num_params: action.actionConfiguration?.jsArguments?.length,
-    from: from,
+    from,
+    consoleStatements:
+      action.actionConfiguration?.body?.match(CONSOLE_DOT_LOG_INVOCATION_REGEX)
+        ?.length || 0,
   });
+
   yield call(handleExecuteJSFunctionSaga, {
     collectionName: collectionName,
     action: action,
@@ -538,10 +557,8 @@ function* handleRefactorJSActionNameSaga(
     // get the layoutId from the page response
     const layoutId = pageResponse.data.layouts[0].id;
     const requestData = {
-      refactorAction: {
-        ...data.payload.refactorAction,
-        layoutId: layoutId,
-      },
+      ...data.payload.refactorAction,
+      layoutId: layoutId,
       actionCollection: data.payload.actionCollection,
     };
     // call to refactor action
@@ -549,9 +566,8 @@ function* handleRefactorJSActionNameSaga(
       const refactorResponse: ApiResponse =
         yield JSActionAPI.updateJSCollectionActionRefactor(requestData);
 
-      const isRefactorSuccessful: boolean = yield validateResponse(
-        refactorResponse,
-      );
+      const isRefactorSuccessful: boolean =
+        yield validateResponse(refactorResponse);
 
       const currentPageId: string | undefined = yield select(getCurrentPageId);
 
@@ -632,7 +648,7 @@ function* handleUpdateJSFunctionPropertySaga(
           source: {
             type: ENTITY_TYPE.JSACTION,
             name: collection.name + "." + action.name,
-            id: actionId,
+            id: action.collectionId,
             propertyPath: fieldToBeUpdated,
           },
           state: {
@@ -684,7 +700,7 @@ function* toggleFunctionExecuteOnLoadSaga(
         source: {
           type: ENTITY_TYPE.JSACTION,
           name: collection.name + "." + jsAction?.name,
-          id: actionId,
+          id: collectionId,
           propertyPath: "executeOnLoad",
         },
         state: {

@@ -19,6 +19,7 @@ describe("Dynamic Height Width validation for Tab widget", function () {
       .GetWidgetCSSHeight(locators._widgetInDeployed(draggableWidgets.TAB))
       .then((currentHeight: number) => {
         agHelper.GetNClick(propPane._tabId2);
+        agHelper.Sleep(1000);
         agHelper
           .GetWidgetCSSHeight(locators._widgetInDeployed(draggableWidgets.TAB))
           .then((updatedHeight: number) => {
@@ -35,13 +36,14 @@ describe("Dynamic Height Width validation for Tab widget", function () {
     deployMode.DeployApp();
     validateHeight();
     deployMode.NavigateBacktoEditor();
-    agHelper.AssertElementVisible(locators._previewModeToggle("edit"));
+    agHelper.AssertElementVisibility(locators._previewModeToggle("edit"));
     agHelper.GetNClick(locators._previewModeToggle("edit"));
     agHelper.GetNClick(propPane._tabId1);
     agHelper
       .GetWidgetCSSHeight(locators._widgetInDeployed(draggableWidgets.TAB))
       .then((currentHeight) => {
         agHelper.GetNClick(propPane._tabId2);
+        agHelper.Sleep(1000);
         agHelper
           .GetWidgetCSSHeight(locators._widgetInDeployed(draggableWidgets.TAB))
           .then((updatedHeight: number) => {
@@ -49,7 +51,7 @@ describe("Dynamic Height Width validation for Tab widget", function () {
           });
       });
     // it("Tab widget validation of height with preview mode", function() {
-    agHelper.AssertElementVisible(locators._previewModeToggle("preview"));
+    agHelper.AssertElementVisibility(locators._previewModeToggle("preview"));
     agHelper.GetNClick(locators._previewModeToggle("preview"));
     entityExplorer.SelectEntityByName("Tabs1");
     propPane.SelectPropertiesDropDown("height", "Fixed");
@@ -77,7 +79,7 @@ describe("Dynamic Height Width validation for Tab widget", function () {
       });
     //it("Tab widget validation of height with reload", function() {
     entityExplorer.SelectEntityByName("Tabs1");
-    agHelper.AssertElementVisible(propPane._propertyPaneHeightLabel);
+    agHelper.AssertElementVisibility(propPane._propertyPaneHeightLabel);
     agHelper.GetNClick(propPane._showTabsProperty);
     propPane.SelectPropertiesDropDown("height", "Auto Height");
     agHelper.GetNClick(propPane._tabId1);

@@ -1,19 +1,16 @@
 import {
   agHelper,
+  draggableWidgets,
   entityExplorer,
-  locators,
   propPane,
 } from "../../../../support/Objects/ObjectsCore";
 
 describe("JS to non-JS mode in Action Selector", () => {
   before(() => {
-    agHelper.AddDsl("promisesBtnDsl", locators._spanButton("Submit"));
+    entityExplorer.DragDropWidgetNVerify(draggableWidgets.BUTTON);
   });
 
   it("1. shows fields for navigate to from js to non-js mode", () => {
-    entityExplorer.SelectEntityByName("Page1", "Pages");
-    entityExplorer.SelectEntityByName("Button1", "Widgets");
-
     propPane.EnterJSContext("onClick", "{{navigateTo()}}", true, false);
     propPane.ToggleJSMode("onClick", false);
 
@@ -25,7 +22,7 @@ describe("JS to non-JS mode in Action Selector", () => {
     );
     agHelper.GetNClick(propPane._actionCard, 0);
 
-    agHelper.AssertElementVisible(propPane._navigateToType("Page name"));
+    agHelper.AssertElementVisibility(propPane._navigateToType("Page name"));
 
     agHelper.GetNAssertElementText(
       propPane._actionOpenDropdownSelectPage,
@@ -64,7 +61,7 @@ describe("JS to non-JS mode in Action Selector", () => {
     );
     agHelper.GetNClick(propPane._actionCard, 0);
 
-    agHelper.AssertElementVisible(propPane._navigateToType("Page name"));
+    agHelper.AssertElementVisibility(propPane._navigateToType("Page name"));
 
     agHelper.GetNAssertElementText(
       propPane._actionOpenDropdownSelectPage,
@@ -103,7 +100,7 @@ describe("JS to non-JS mode in Action Selector", () => {
     );
     agHelper.GetNClick(propPane._actionCard, 0);
 
-    agHelper.AssertElementVisible(propPane._navigateToType("URL"));
+    agHelper.AssertElementVisibility(propPane._navigateToType("URL"));
 
     agHelper.GetNAssertElementText(
       propPane._actionPopupTextLabel,
@@ -503,13 +500,12 @@ describe("JS to non-JS mode in Action Selector", () => {
     agHelper.TypeText(
       propPane._actionSelectorFieldByLabel("Text to be copied to clipboard"),
       "line1{enter}line2{enter}line3",
-      0,
-      true,
+      { parseSpecialCharSeq: true },
     );
     propPane.ToggleJSMode("onClick");
     propPane.ValidatePropertyFieldValue(
       "onClick",
-      `{{copyToClipboard('line1\\nline2\\nline3a');}}`,
+      `{{copyToClipboard('aline1\\nline2\\nline3');}}`,
     );
   });
 

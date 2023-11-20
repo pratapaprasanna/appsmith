@@ -2,7 +2,7 @@ import type { Page } from "@appsmith/constants/ReduxActionConstants";
 import { ThemePropertyPane } from "pages/Editor/ThemePropertyPane";
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { selectAllPages } from "selectors/entitiesSelector";
+import { selectAllPages } from "@appsmith/selectors/entitiesSelector";
 import styled from "styled-components";
 import GeneralSettings from "./GeneralSettings";
 import type { SectionHeaderProps } from "./SectionHeader";
@@ -27,7 +27,10 @@ import {
 import { Colors } from "constants/Colors";
 import EmbedSettings from "./EmbedSettings";
 import NavigationSettings from "./NavigationSettings";
-import { updateAppSettingsPaneSelectedTabAction } from "actions/appSettingsPaneActions";
+import {
+  closeAppSettingsPaneAction,
+  updateAppSettingsPaneSelectedTabAction,
+} from "actions/appSettingsPaneActions";
 import AnalyticsUtil from "utils/AnalyticsUtil";
 import { Divider } from "design-system";
 import { ImportAppSettings } from "./ImportAppSettings";
@@ -109,6 +112,10 @@ function AppSettings() {
         },
       }),
     );
+
+    return () => {
+      dispatch(closeAppSettingsPaneAction());
+    };
   }, [selectedTab]);
 
   const SectionHeadersConfig: SectionHeaderProps[] = [

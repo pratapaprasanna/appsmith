@@ -20,11 +20,10 @@ const renderComponent = (
       {...omit(componentProps, "type")}
       {...componentProps.input}
       errorMessage={
-        !componentProps.hideErrorMessage &&
-        showError &&
-        componentProps.meta.error &&
-        componentProps.meta.error
+        !componentProps.hideErrorMessage && componentProps.meta.error
       }
+      isDisabled={componentProps.disabled}
+      label={componentProps.label as string}
     />
   ) : (
     <Input
@@ -35,24 +34,25 @@ const renderComponent = (
         showError &&
         componentProps.meta.error
       }
+      isDisabled={componentProps.disabled}
       renderAs={"input"}
       size="md"
     />
   );
 };
 
-export type FormTextFieldProps = {
+export interface FormTextFieldProps {
   name: string;
   placeholder: string;
   description?: string;
   type?: InputType;
-  label?: string;
+  label?: React.ReactNode;
   intent?: Intent;
   disabled?: boolean;
   autoFocus?: boolean;
   hideErrorMessage?: boolean;
   isRequired?: boolean;
-};
+}
 
 function ReduxFormTextField(props: FormTextFieldProps) {
   return <Field component={renderComponent} {...props} asyncControl />;

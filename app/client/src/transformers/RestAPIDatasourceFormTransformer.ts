@@ -1,9 +1,6 @@
-import {
-  getCurrentEnvironment,
-  isEnvironmentValid,
-} from "@appsmith/utils/Environments";
+import { isEnvironmentValid } from "@appsmith/utils/Environments";
 import type { Property } from "entities/Action";
-import type { Datasource } from "entities/Datasource";
+import type { Datasource, DatasourceStorage } from "entities/Datasource";
 import type {
   ApiDatasourceForm,
   Authentication,
@@ -20,8 +17,8 @@ import { get, set } from "lodash";
 
 export const datasourceToFormValues = (
   datasource: Datasource,
+  currentEnvironment: string,
 ): ApiDatasourceForm => {
-  const currentEnvironment = getCurrentEnvironment();
   const authType = get(
     datasource,
     `datasourceStorages.${currentEnvironment}.datasourceConfiguration.authentication.authenticationType`,
@@ -46,7 +43,11 @@ export const datasourceToFormValues = (
       connection.ssl.authType === SSLType.SELF_SIGNED_CERTIFICATE,
     );
   }
-  const authentication = datasourceToFormAuthentication(authType, datasource);
+  const authentication = datasourceToFormAuthentication(
+    authType,
+    datasource,
+    currentEnvironment,
+  );
   const isSendSessionEnabled =
     get(
       datasource,
@@ -80,18 +81,36 @@ export const datasourceToFormValues = (
     authType: authType,
     authentication: authentication,
     connection: connection,
-  };
+  } as ApiDatasourceForm;
 };
 
 export const formValuesToDatasource = (
   datasource: Datasource,
   form: ApiDatasourceForm,
+  currentEnvironment: string,
 ): Datasource => {
-  const currentEnvironment = getCurrentEnvironment();
   const authentication = formToDatasourceAuthentication(
     form.authType,
     form.authentication,
   );
+  const dsStorages = datasource.datasourceStorages;
+  let dsStorage: DatasourceStorage;
+  if (dsStorages.hasOwnProperty(currentEnvironment)) {
+    dsStorage = dsStorages[currentEnvironment];
+  } else {
+    dsStorage = {
+      environmentId: currentEnvironment,
+      datasourceConfiguration: {
+        url: "",
+      },
+      isValid: false,
+      datasourceId: datasource.id,
+    };
+  }
+
+  if (!dsStorage.hasOwnProperty("environmentId")) {
+    dsStorage.environmentId = currentEnvironment;
+  }
 
   const connection = form.connection;
   if (connection) {
@@ -116,11 +135,8 @@ export const formValuesToDatasource = (
     authentication: authentication,
     connection: form.connection,
   };
-  set(
-    datasource,
-    `datasourceStorages.${currentEnvironment}.datasourceConfiguration`,
-    conf,
-  );
+  set(dsStorage, "datasourceConfiguration", conf);
+  set(dsStorages, currentEnvironment, dsStorage);
   return datasource;
 };
 
@@ -208,8 +224,8 @@ const formToDatasourceAuthentication = (
 const datasourceToFormAuthentication = (
   authType: AuthType,
   datasource: Datasource,
+  currentEnvironment: string,
 ): Authentication | undefined => {
-  const currentEnvironment = getCurrentEnvironment();
   if (
     !datasource ||
     !datasource.datasourceStorages[currentEnvironment]

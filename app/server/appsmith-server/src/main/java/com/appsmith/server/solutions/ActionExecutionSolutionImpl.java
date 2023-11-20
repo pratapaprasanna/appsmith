@@ -1,16 +1,16 @@
 package com.appsmith.server.solutions;
 
+import com.appsmith.server.datasources.base.DatasourceService;
+import com.appsmith.server.datasourcestorages.base.DatasourceStorageService;
 import com.appsmith.server.helpers.PluginExecutorHelper;
+import com.appsmith.server.newactions.base.NewActionService;
+import com.appsmith.server.newpages.base.NewPageService;
+import com.appsmith.server.plugins.base.PluginService;
 import com.appsmith.server.repositories.NewActionRepository;
 import com.appsmith.server.services.AnalyticsService;
 import com.appsmith.server.services.ApplicationService;
 import com.appsmith.server.services.AuthenticationValidator;
 import com.appsmith.server.services.DatasourceContextService;
-import com.appsmith.server.services.DatasourceService;
-import com.appsmith.server.services.DatasourceStorageService;
-import com.appsmith.server.services.NewActionService;
-import com.appsmith.server.services.NewPageService;
-import com.appsmith.server.services.PluginService;
 import com.appsmith.server.services.SessionUserService;
 import com.appsmith.server.solutions.ce.ActionExecutionSolutionCEImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,7 +35,8 @@ public class ActionExecutionSolutionImpl extends ActionExecutionSolutionCEImpl i
             AuthenticationValidator authenticationValidator,
             DatasourcePermission datasourcePermission,
             AnalyticsService analyticsService,
-            DatasourceStorageService datasourceStorageService) {
+            DatasourceStorageService datasourceStorageService,
+            EnvironmentPermission environmentPermission) {
         super(
                 newActionService,
                 actionPermission,
@@ -52,6 +53,7 @@ public class ActionExecutionSolutionImpl extends ActionExecutionSolutionCEImpl i
                 authenticationValidator,
                 datasourcePermission,
                 analyticsService,
-                datasourceStorageService);
+                datasourceStorageService,
+                environmentPermission);
     }
 }

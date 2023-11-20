@@ -1,3 +1,7 @@
+import EditorNavigation, {
+  SidebarButton,
+} from "../../../../support/Pages/EditorNavigation";
+
 const OnboardingLocator = require("../../../../locators/FirstTimeUserOnboarding.json");
 import {
   agHelper,
@@ -7,6 +11,7 @@ import {
   onboarding,
   draggableWidgets,
   debuggerHelper,
+  dataSources,
 } from "../../../../support/Objects/ObjectsCore";
 const datasource = require("../../../../locators/DatasourcesEditor.json");
 
@@ -22,6 +27,7 @@ describe("FirstTimeUserOnboarding", function () {
     cy.get(OnboardingLocator.introModal).should("be.visible");
     cy.get(OnboardingLocator.checklistDatasourceBtn).click();
     cy.get(OnboardingLocator.introModal).should("not.exist");
+    EditorNavigation.ViaSidebar(SidebarButton.Pages);
     cy.get(".t--entity-name:contains(Page1)")
       .trigger("mouseover")
       .click({ force: true });
@@ -35,7 +41,7 @@ describe("FirstTimeUserOnboarding", function () {
       agHelper.GetNAssertContains(OnboardingLocator.checklistStatus, "0 of 5");
       agHelper.AssertElementExist(OnboardingLocator.checklistDatasourceBtn);
       agHelper.GetNClick(OnboardingLocator.checklistDatasourceBtn);
-      agHelper.AssertElementVisible(OnboardingLocator.datasourcePage);
+      agHelper.AssertElementVisibility(dataSources._newDatasourceContainer);
 
       agHelper.GetNClick(OnboardingLocator.datasourceMock);
 
@@ -47,6 +53,7 @@ describe("FirstTimeUserOnboarding", function () {
         .realHover()
         .should("have.css", "cursor", "auto");
       agHelper.GetNClick(OnboardingLocator.checklistActionBtn);
+      dataSources.navigateToDatasource("Movies");
       agHelper.GetNClick(OnboardingLocator.createQuery);
 
       agHelper.Sleep();
@@ -57,7 +64,7 @@ describe("FirstTimeUserOnboarding", function () {
         .realHover()
         .should("have.css", "cursor", "auto");
       agHelper.GetNClick(OnboardingLocator.checklistWidgetBtn);
-      agHelper.AssertElementVisible(OnboardingLocator.widgetSidebar);
+      agHelper.AssertElementVisibility(OnboardingLocator.widgetSidebar);
 
       entityExplorer.DragDropWidgetNVerify(draggableWidgets.TEXT);
 
@@ -69,7 +76,7 @@ describe("FirstTimeUserOnboarding", function () {
         .should("have.css", "cursor", "auto");
       agHelper.GetNClick(OnboardingLocator.checklistConnectionBtn);
 
-      agHelper.AssertElementVisible(OnboardingLocator.snipingBanner);
+      agHelper.AssertElementVisibility(OnboardingLocator.snipingBanner);
 
       cy.get(OnboardingLocator.snipingTextWidget)
         .first()
@@ -116,9 +123,9 @@ describe("FirstTimeUserOnboarding", function () {
         .should("have.css", "cursor", "pointer");
 
       cy.get(OnboardingLocator.checklistDatasourceBtn).click();
-      cy.get(OnboardingLocator.datasourcePage).should("be.visible");
+      cy.get(dataSources._newDatasourceContainer).should("be.visible");
       cy.get(datasource.MongoDB).click();
-      cy.fillMongoDatasourceForm();
+      dataSources.FillMongoDSForm();
       cy.generateUUID().then((uid) => {
         datasourceName = `Mongo CRUD ds ${uid}`;
         cy.renameDatasource(datasourceName);
@@ -186,13 +193,13 @@ describe("FirstTimeUserOnboarding", function () {
   );
 
   it("3. onboarding flow - should check directly opening widget pane", function () {
-    agHelper.AssertElementVisible(OnboardingLocator.checklistDatasourceBtn);
+    agHelper.AssertElementVisibility(OnboardingLocator.checklistDatasourceBtn);
     agHelper.GetNClick(OnboardingLocator.introModalCloseBtn);
     entityExplorer.NavigateToSwitcher("Widgets");
-    agHelper.AssertElementVisible(OnboardingLocator.widgetSidebar);
-    agHelper.AssertElementVisible(OnboardingLocator.dropTarget);
+    agHelper.AssertElementVisibility(OnboardingLocator.widgetSidebar);
+    agHelper.AssertElementVisibility(OnboardingLocator.dropTarget);
     entityExplorer.DragDropWidgetNVerify(draggableWidgets.TEXT);
-    agHelper.RefreshPage(true, "getPage");
+    agHelper.RefreshPage("getPage");
     agHelper.AssertElementEnabledDisabled(
       debuggerHelper.locators._helpButton,
       0,
@@ -200,24 +207,24 @@ describe("FirstTimeUserOnboarding", function () {
     );
     agHelper.Sleep(500);
     agHelper.GetNClick(debuggerHelper.locators._helpButton);
-    agHelper.AssertElementVisible(OnboardingLocator.introModal);
-    agHelper.AssertElementVisible(OnboardingLocator.textWidgetName);
+    agHelper.AssertElementVisibility(OnboardingLocator.introModal);
+    agHelper.AssertElementVisibility(OnboardingLocator.textWidgetName);
   });
 
   it("4. onboarding flow - new apps created should start with signposting", function () {
-    agHelper.AssertElementVisible(OnboardingLocator.checklistDatasourceBtn);
+    agHelper.AssertElementVisibility(OnboardingLocator.checklistDatasourceBtn);
     agHelper.GetNClick(OnboardingLocator.introModalCloseBtn);
     homePage.NavigateToHome();
     homePage.CreateNewApplication(false);
-    agHelper.AssertElementVisible(locators._dropHere);
+    agHelper.AssertElementVisibility(locators._dropHere);
     agHelper.AssertElementEnabledDisabled(
       debuggerHelper.locators._helpButton,
       0,
       false,
     );
     agHelper.Sleep(500);
-    agHelper.GetNClick(debuggerHelper.locators._helpButton);
-    agHelper.AssertElementVisible(OnboardingLocator.checklistDatasourceBtn);
+    agHelper.GetNClick(debuggerHelper.locators._helpButton, 0, true);
+    agHelper.AssertElementVisibility(OnboardingLocator.checklistDatasourceBtn);
   });
 
   it("5. onboarding flow - once signposting is completed new apps won't start with signposting", function () {

@@ -12,7 +12,7 @@ export enum EditInteractionKind {
   DOUBLE,
 }
 
-type EditableTextProps = {
+interface EditableTextProps {
   type: "text" | "password" | "email" | "phone" | "date";
   defaultValue: string;
   onTextChanged: (value: string) => void;
@@ -37,7 +37,7 @@ type EditableTextProps = {
   minLines?: number;
   customErrorTooltip?: string;
   useFullWidth?: boolean;
-};
+}
 
 // using the !important keyword here is mandatory because a style is being applied to that element using the style attribute
 // which has higher specificity than other css selectors. It seems the overriding style is being applied by the package itself.
@@ -61,7 +61,6 @@ const EditableTextWrapper = styled.div<{
       padding: ${(props) => (!props.minimal ? "5px 5px" : "0px")};
       border-radius: var(--ads-v2-border-radius);
       text-transform: none;
-      flex: 1 0 100%;
       max-width: 100%;
       overflow: hidden;
       display: flex;

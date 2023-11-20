@@ -2,20 +2,20 @@ import React, { useEffect } from "react";
 import { toggleInOnboardingWidgetSelection } from "actions/onboardingActions";
 import { forceOpenWidgetPanel } from "actions/widgetSidebarActions";
 import { SegmentedControl } from "design-system";
-import { tailwindLayers } from "constants/Layers";
 import { useDispatch, useSelector } from "react-redux";
 import { useLocation } from "react-router";
 import type { AppState } from "@appsmith/reducers";
-import { builderURL } from "RouteBuilder";
+import { builderURL } from "@appsmith/RouteBuilder";
 import { getCurrentPageId } from "selectors/editorSelectors";
 import { getIsFirstTimeUserOnboardingEnabled } from "selectors/onboardingSelectors";
 import AnalyticsUtil from "utils/AnalyticsUtil";
 import { trimQueryString } from "utils/helpers";
 import history from "utils/history";
-import WidgetSidebar from "../WidgetSidebar";
 import EntityExplorer from "./EntityExplorer";
 import { getExplorerSwitchIndex } from "selectors/editorContextSelectors";
 import { setExplorerSwitchIndex } from "actions/editorContextActions";
+import WidgetSidebarWithTags from "../WidgetSidebarWithTags";
+import { ExplorerWrapper } from "./Common/ExplorerWrapper";
 
 const selectForceOpenWidgetPanel = (state: AppState) =>
   state.ui.onBoarding.forceOpenWidgetPanel;
@@ -76,19 +76,23 @@ function ExplorerContent() {
   const { value: activeOption } = options[activeSwitchIndex];
 
   return (
-    <div
-      className={`flex-1 flex flex-col overflow-hidden ${tailwindLayers.entityExplorer}`}
-    >
-      <div className={`flex-shrink-0 px-2 mt-1 py-2 border-t`}>
+    <ExplorerWrapper>
+      <div
+        className="flex-shrink-0 p-3 pb-2"
+        data-testid="explorer-tab-options"
+        id="explorer-tab-options"
+      >
         <SegmentedControl
           onChange={onChange}
           options={options}
           value={activeOption}
         />
       </div>
-      <WidgetSidebar isActive={activeOption === "widgets"} />
+
+      <WidgetSidebarWithTags isActive={activeOption === "widgets"} />
+
       <EntityExplorer isActive={activeOption === "explorer"} />
-    </div>
+    </ExplorerWrapper>
   );
 }
 

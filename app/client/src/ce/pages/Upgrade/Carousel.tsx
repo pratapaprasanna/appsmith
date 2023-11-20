@@ -23,7 +23,7 @@ const CarouselContainer = styled.div`
     & .carousel-trigger {
       padding: 16px;
       width: 100%;
-      height: 56px;
+      height: max-content;
       cursor: pointer;
 
       .icon-container {
@@ -65,8 +65,8 @@ const CarouselContainer = styled.div`
 
       &.active {
         height: max-content;
-        min-height: 156px;
-        box-shadow: 0 2px 4px -2px rgba(0, 0, 0, 0.06),
+        box-shadow:
+          0 2px 4px -2px rgba(0, 0, 0, 0.06),
           0 4px 8px -2px rgba(0, 0, 0, 0.1);
 
         background-color: var(--ads-v2-color-bg);

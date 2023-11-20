@@ -10,6 +10,7 @@ import com.appsmith.external.models.Endpoint;
 import com.appsmith.external.models.Property;
 import com.appsmith.external.models.SSLDetails;
 import com.appsmith.server.configurations.CloudServicesConfig;
+import com.appsmith.server.datasources.base.DatasourceService;
 import com.appsmith.server.domains.User;
 import com.appsmith.server.dtos.MockDataCredentials;
 import com.appsmith.server.dtos.MockDataDTO;
@@ -18,7 +19,6 @@ import com.appsmith.server.dtos.ResponseDTO;
 import com.appsmith.server.exceptions.AppsmithError;
 import com.appsmith.server.exceptions.AppsmithException;
 import com.appsmith.server.services.AnalyticsService;
-import com.appsmith.server.services.DatasourceService;
 import com.appsmith.server.services.SessionUserService;
 import com.appsmith.util.WebClientUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -125,7 +125,8 @@ public class MockDataServiceCEImpl implements MockDataServiceCE {
             HashMap<String, DatasourceStorageDTO> storages = new HashMap<>();
 
             return datasourceService
-                    .getTrueEnvironmentId(mockDataSource.getWorkspaceId(), environmentId, mockDataSource.getPluginId())
+                    .getTrueEnvironmentId(
+                            mockDataSource.getWorkspaceId(), environmentId, mockDataSource.getPluginId(), null)
                     .flatMap(trueEnvironmentId -> {
                         storages.put(
                                 trueEnvironmentId,

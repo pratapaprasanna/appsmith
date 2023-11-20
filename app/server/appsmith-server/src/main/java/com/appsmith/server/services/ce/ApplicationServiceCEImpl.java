@@ -14,7 +14,6 @@ import com.appsmith.server.domains.ApplicationMode;
 import com.appsmith.server.domains.Asset;
 import com.appsmith.server.domains.GitApplicationMetadata;
 import com.appsmith.server.domains.GitAuth;
-import com.appsmith.server.domains.NewAction;
 import com.appsmith.server.domains.Page;
 import com.appsmith.server.domains.QApplication;
 import com.appsmith.server.domains.Theme;
@@ -35,6 +34,7 @@ import com.appsmith.server.services.AssetService;
 import com.appsmith.server.services.BaseService;
 import com.appsmith.server.services.ConfigService;
 import com.appsmith.server.services.PermissionGroupService;
+import com.appsmith.server.services.SessionUserService;
 import com.appsmith.server.solutions.ApplicationPermission;
 import com.appsmith.server.solutions.DatasourcePermission;
 import com.appsmith.server.solutions.PolicySolution;
@@ -47,6 +47,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate;
 import org.springframework.data.mongodb.core.convert.MongoConverter;
 import org.springframework.http.codec.multipart.Part;
+import org.springframework.stereotype.Service;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
@@ -61,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.appsmith.server.acl.AclPermission.MANAGE_APPLICATIONS;
 import static com.appsmith.server.acl.AclPermission.READ_APPLICATIONS;
@@ -68,6 +70,7 @@ import static com.appsmith.server.constants.Constraint.MAX_LOGO_SIZE_KB;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 
 @Slf4j
+@Service
 public class ApplicationServiceCEImpl extends BaseService<ApplicationRepository, Application, String>
         implements ApplicationServiceCE {
 
@@ -80,6 +83,7 @@ public class ApplicationServiceCEImpl extends BaseService<ApplicationRepository,
 
     private final DatasourcePermission datasourcePermission;
     private final ApplicationPermission applicationPermission;
+    private final SessionUserService sessionUserService;
     private static final Integer MAX_RETRIES = 5;
 
     @Autowired
@@ -97,7 +101,8 @@ public class ApplicationServiceCEImpl extends BaseService<ApplicationRepository,
             NewActionRepository newActionRepository,
             AssetService assetService,
             DatasourcePermission datasourcePermission,
-            ApplicationPermission applicationPermission) {
+            ApplicationPermission applicationPermission,
+            SessionUserService sessionUserService) {
 
         super(scheduler, validator, mongoConverter, reactiveMongoTemplate, repository, analyticsService);
         this.policySolution = policySolution;
@@ -108,6 +113,7 @@ public class ApplicationServiceCEImpl extends BaseService<ApplicationRepository,
         this.assetService = assetService;
         this.datasourcePermission = datasourcePermission;
         this.applicationPermission = applicationPermission;
+        this.sessionUserService = sessionUserService;
     }
 
     @Override
@@ -255,66 +261,77 @@ public class ApplicationServiceCEImpl extends BaseService<ApplicationRepository,
 
     @Override
     public Mono<Application> update(String id, Application application) {
-        application.setIsPublic(null);
-        application.setLastEditedAt(Instant.now());
-        if (!StringUtils.isEmpty(application.getName())) {
-            application.setSlug(TextUtils.makeSlug(application.getName()));
-        }
-
-        if (application.getApplicationVersion() != null) {
-            int appVersion = application.getApplicationVersion();
-            if (appVersion < ApplicationVersion.EARLIEST_VERSION || appVersion > ApplicationVersion.LATEST_VERSION) {
-                return Mono.error(new AppsmithException(
-                        AppsmithError.INVALID_PARAMETER,
-                        QApplication.application
-                                .applicationVersion
-                                .getMetadata()
-                                .getName()));
+        return sessionUserService.getCurrentUser().flatMap(currentUser -> {
+            application.setModifiedBy(currentUser.getUsername());
+            application.setIsPublic(null);
+            application.setLastEditedAt(Instant.now());
+            if (!StringUtils.isEmpty(application.getName())) {
+                application.setSlug(TextUtils.makeSlug(application.getName()));
             }
-        }
 
-        Mono<String> applicationIdMono;
-        GitApplicationMetadata gitData = application.getGitApplicationMetadata();
-        if (gitData != null
-                && !StringUtils.isEmpty(gitData.getBranchName())
-                && !StringUtils.isEmpty(gitData.getDefaultApplicationId())) {
-            applicationIdMono = this.findByBranchNameAndDefaultApplicationId(
-                            gitData.getBranchName(),
-                            gitData.getDefaultApplicationId(),
-                            applicationPermission.getEditPermission())
-                    .map(Application::getId);
-        } else {
-            applicationIdMono = Mono.just(id);
-        }
-        return applicationIdMono.flatMap(appId -> repository
-                .updateById(appId, application, applicationPermission.getEditPermission())
-                .onErrorResume(error -> {
-                    if (error instanceof DuplicateKeyException) {
-                        // Error message : E11000 duplicate key error collection: appsmith.application index:
-                        // workspace_app_deleted_gitApplicationMetadata dup key:
-                        // { organizationId: "******", name: "AppName", deletedAt: null }
-                        if (error.getCause().getMessage().contains("workspace_app_deleted_gitApplicationMetadata")) {
+            if (application.getApplicationVersion() != null) {
+                int appVersion = application.getApplicationVersion();
+                if (appVersion < ApplicationVersion.EARLIEST_VERSION
+                        || appVersion > ApplicationVersion.LATEST_VERSION) {
+                    return Mono.error(new AppsmithException(
+                            AppsmithError.INVALID_PARAMETER,
+                            QApplication.application
+                                    .applicationVersion
+                                    .getMetadata()
+                                    .getName()));
+                }
+            }
+
+            Mono<String> applicationIdMono;
+            GitApplicationMetadata gitData = application.getGitApplicationMetadata();
+            if (gitData != null
+                    && !StringUtils.isEmpty(gitData.getBranchName())
+                    && !StringUtils.isEmpty(gitData.getDefaultApplicationId())) {
+                applicationIdMono = this.findByBranchNameAndDefaultApplicationId(
+                                gitData.getBranchName(),
+                                gitData.getDefaultApplicationId(),
+                                applicationPermission.getEditPermission())
+                        .map(Application::getId);
+            } else {
+                applicationIdMono = Mono.just(id);
+            }
+            return applicationIdMono.flatMap(appId -> repository
+                    .updateById(appId, application, applicationPermission.getEditPermission())
+                    .onErrorResume(error -> {
+                        log.error("failed to update application {}", appId, error);
+                        if (error instanceof DuplicateKeyException) {
+                            // Error message : E11000 duplicate key error collection: appsmith.application index:
+                            // workspace_app_deleted_gitApplicationMetadata dup key:
+                            // { organizationId: "******", name: "AppName", deletedAt: null }
+                            if (error.getCause()
+                                    .getMessage()
+                                    .contains("workspace_app_deleted_gitApplicationMetadata")) {
+                                return Mono.error(new AppsmithException(
+                                        AppsmithError.DUPLICATE_KEY_USER_ERROR, FieldName.APPLICATION, FieldName.NAME));
+                            }
                             return Mono.error(new AppsmithException(
-                                    AppsmithError.DUPLICATE_KEY_USER_ERROR, FieldName.APPLICATION, FieldName.NAME));
+                                    AppsmithError.DUPLICATE_KEY,
+                                    DuplicateKeyExceptionUtils.extractConflictingObjectName(
+                                            ((DuplicateKeyException) error)
+                                                    .getCause()
+                                                    .getMessage())));
                         }
-                        return Mono.error(new AppsmithException(
-                                AppsmithError.DUPLICATE_KEY,
-                                DuplicateKeyExceptionUtils.extractConflictingObjectName(((DuplicateKeyException) error)
-                                        .getCause()
-                                        .getMessage())));
-                    }
-                    return Mono.error(error);
-                })
-                .flatMap(application1 -> this.setTransientFields(application1))
-                .flatMap(application1 -> {
-                    final Map<String, Object> eventData = Map.of(
-                            FieldName.APP_MODE, ApplicationMode.EDIT.toString(), FieldName.APPLICATION, application1);
-                    final Map<String, Object> data = Map.of(
-                            FieldName.APPLICATION_ID, application1.getId(),
-                            FieldName.WORKSPACE_ID, application1.getWorkspaceId(),
-                            FieldName.EVENT_DATA, eventData);
-                    return analyticsService.sendUpdateEvent(application1, data);
-                }));
+                        return Mono.error(error);
+                    })
+                    .flatMap(application1 -> this.setTransientFields(application1))
+                    .flatMap(application1 -> {
+                        final Map<String, Object> eventData = Map.of(
+                                FieldName.APP_MODE,
+                                ApplicationMode.EDIT.toString(),
+                                FieldName.APPLICATION,
+                                application1);
+                        final Map<String, Object> data = Map.of(
+                                FieldName.APPLICATION_ID, application1.getId(),
+                                FieldName.WORKSPACE_ID, application1.getWorkspaceId(),
+                                FieldName.EVENT_DATA, eventData);
+                        return analyticsService.sendUpdateEvent(application1, data);
+                    }));
+        });
     }
 
     public Mono<UpdateResult> update(
@@ -461,10 +478,16 @@ public class ApplicationServiceCEImpl extends BaseService<ApplicationRepository,
         Map<String, Policy> applicationPolicyMap =
                 policySolution.generatePolicyFromPermissionWithPermissionGroup(READ_APPLICATIONS, permissionGroupId);
 
+        Flux<String> otherApplicationsForThisRoleFlux = repository
+                .getAllApplicationIdsInWorkspaceAccessibleToARoleWithPermission(
+                        application.getWorkspaceId(), READ_APPLICATIONS, permissionGroupId)
+                .filter(applicationId -> !application.getId().equals(applicationId))
+                .cache();
+
         List<Mono<Void>> updateInheritedDomainsList =
                 updatePoliciesForInheritingDomains(application, applicationPolicyMap, addViewAccess);
-        List<Mono<Void>> updateIndependentDomainsList =
-                updatePoliciesForIndependentDomains(application, permissionGroupId, addViewAccess);
+        List<Mono<Void>> updateIndependentDomainsList = updatePoliciesForIndependentDomains(
+                application, permissionGroupId, addViewAccess, otherApplicationsForThisRoleFlux);
 
         return Flux.fromIterable(updateInheritedDomainsList)
                 .flatMap(voidMono -> voidMono)
@@ -485,45 +508,80 @@ public class ApplicationServiceCEImpl extends BaseService<ApplicationRepository,
     }
 
     protected List<Mono<Void>> updatePoliciesForIndependentDomains(
-            Application application, String permissionGroupId, Boolean addViewAccess) {
+            Application application,
+            String permissionGroupId,
+            Boolean addViewAccess,
+            Flux<String> otherApplicationsWithAccessFlux) {
 
         List<Mono<Void>> list = new ArrayList<>();
 
         Map<String, Policy> datasourcePolicyMap = policySolution.generatePolicyFromPermissionWithPermissionGroup(
                 datasourcePermission.getExecutePermission(), permissionGroupId);
 
-        Mono<Void> updatedDatasourcesMono = newActionRepository
-                .findByApplicationId(application.getId())
-                .collectList()
-                .flatMap(actions -> {
-                    Set<String> datasourceIds = new HashSet<>();
-                    for (NewAction action : actions) {
-                        ActionDTO unpublishedAction = action.getUnpublishedAction();
-                        ActionDTO publishedAction = action.getPublishedAction();
+        Set<String> existingDatasourceIds = ConcurrentHashMap.newKeySet();
+        Set<String> newDatasourceIds = ConcurrentHashMap.newKeySet();
 
-                        if (unpublishedAction.getDatasource() != null
-                                && unpublishedAction.getDatasource().getId() != null) {
-                            datasourceIds.add(unpublishedAction.getDatasource().getId());
-                        }
+        Mono<Void> existingDatasourceIdsMono = otherApplicationsWithAccessFlux
+                .flatMap(ids -> newActionRepository.findByApplicationId(ids))
+                .map(action -> {
+                    ActionDTO unpublishedAction = action.getUnpublishedAction();
+                    ActionDTO publishedAction = action.getPublishedAction();
 
-                        if (publishedAction != null
-                                && publishedAction.getDatasource() != null
-                                && publishedAction.getDatasource().getId() != null) {
-                            datasourceIds.add(publishedAction.getDatasource().getId());
-                        }
+                    if (unpublishedAction.getDatasource() != null
+                            && unpublishedAction.getDatasource().getId() != null) {
+                        existingDatasourceIds.add(
+                                unpublishedAction.getDatasource().getId());
                     }
 
-                    // Update the datasource policies without permission since the applications and datasources are at
-                    // the same level in the hierarchy. A user may have permission to change view on application, but
-                    // may
-                    // not have explicit permissions on the datasource.
-                    Mono<Void> updatedDatasourcesMono1 = policySolution
-                            .updateWithNewPoliciesToDatasourcesByDatasourceIdsWithoutPermission(
-                                    datasourceIds, datasourcePolicyMap, addViewAccess)
-                            .then();
+                    if (publishedAction != null
+                            && publishedAction.getDatasource() != null
+                            && publishedAction.getDatasource().getId() != null) {
+                        existingDatasourceIds.add(
+                                publishedAction.getDatasource().getId());
+                    }
+                    return action;
+                })
+                .then();
 
-                    return updatedDatasourcesMono1;
-                });
+        Mono<Void> newDatasourceIdsMono = newActionRepository
+                .findByApplicationId(application.getId())
+                .map(action -> {
+                    ActionDTO unpublishedAction = action.getUnpublishedAction();
+                    ActionDTO publishedAction = action.getPublishedAction();
+
+                    if (unpublishedAction.getDatasource() != null
+                            && unpublishedAction.getDatasource().getId() != null) {
+                        newDatasourceIds.add(unpublishedAction.getDatasource().getId());
+                    }
+
+                    if (publishedAction != null
+                            && publishedAction.getDatasource() != null
+                            && publishedAction.getDatasource().getId() != null) {
+                        newDatasourceIds.add(publishedAction.getDatasource().getId());
+                    }
+                    return action;
+                })
+                .then();
+
+        Mono<Set<String>> datasourceIdsMono = Mono.when(existingDatasourceIdsMono, newDatasourceIdsMono)
+                .then(Mono.fromCallable(() -> {
+                    // We want to change permissions for all the datasources related to the new application
+                    HashSet<String> datasourceIds = new HashSet<>(newDatasourceIds);
+                    // But disregard anything that is being used in other applications as well
+                    datasourceIds.removeAll(existingDatasourceIds);
+                    return datasourceIds;
+                }));
+
+        // Update the datasource policies without permission since the applications and datasources are at
+        // the same level in the hierarchy. A user may have permission to change view on application, but
+        // may not have explicit permissions on the datasource.
+        Mono<Void> updatedDatasourcesMono = datasourceIdsMono
+                .flatMapMany(datasourceIds -> {
+                    return policySolution.updateWithNewPoliciesToDatasourcesByDatasourceIdsWithoutPermission(
+                            datasourceIds, datasourcePolicyMap, addViewAccess);
+                })
+                .then();
+
         list.add(updatedDatasourcesMono);
 
         return list;
@@ -589,21 +647,7 @@ public class ApplicationServiceCEImpl extends BaseService<ApplicationRepository,
                     return application;
                 });
 
-        return configService
-                .getTemplateApplications()
-                .map(application -> application.getId())
-                .defaultIfEmpty("")
-                .collectList()
-                .cache()
-                .repeat()
-                .zipWith(updatedApplicationWithIsPublicFlux)
-                .map(tuple -> {
-                    List<String> templateApplicationIds = tuple.getT1();
-                    Application application = tuple.getT2();
-
-                    application.setAppIsExample(templateApplicationIds.contains(application.getId()));
-                    return application;
-                });
+        return updatedApplicationWithIsPublicFlux;
     }
 
     /**
@@ -790,21 +834,24 @@ public class ApplicationServiceCEImpl extends BaseService<ApplicationRepository,
      */
     @Override
     public Mono<Application> saveLastEditInformation(String applicationId) {
-        Application application = new Application();
-        // need to set isPublic=null because it has a `false` as it's default value in domain class
-        application.setIsPublic(null);
-        application.setLastEditedAt(Instant.now());
-        application.setIsManualUpdate(true);
-        /*
-         We're not setting updatedAt and modifiedBy fields to the application DTO because these fields will be set
-         by the updateById method of the BaseAppsmithRepositoryImpl
-        */
-        return repository
-                .updateById(
-                        applicationId,
-                        application,
-                        applicationPermission.getEditPermission()) // it'll do a set operation
-                .flatMap(this::setTransientFields);
+        return sessionUserService.getCurrentUser().flatMap(currentUser -> {
+            Application application = new Application();
+            // need to set isPublic=null because it has a `false` as it's default value in domain class
+            application.setIsPublic(null);
+            application.setLastEditedAt(Instant.now());
+            application.setIsManualUpdate(true);
+            application.setModifiedBy(currentUser.getUsername());
+            /*
+             We're not setting updatedAt and modifiedBy fields to the application DTO because these fields will be set
+             by the updateById method of the BaseAppsmithRepositoryImpl
+            */
+            return repository
+                    .updateById(
+                            applicationId,
+                            application,
+                            applicationPermission.getEditPermission()) // it'll do a set operation
+                    .flatMap(this::setTransientFields);
+        });
     }
 
     public Mono<String> findBranchedApplicationId(
@@ -933,9 +980,10 @@ public class ApplicationServiceCEImpl extends BaseService<ApplicationRepository,
     }
 
     @Override
-    public Mono<Application> findByNameAndWorkspaceId(
-            String applicationName, String workspaceId, AclPermission permission) {
-        return repository.findByNameAndWorkspaceId(applicationName, workspaceId, permission);
+    public Mono<Boolean> isApplicationNameTaken(String applicationName, String workspaceId, AclPermission permission) {
+        return repository
+                .countByNameAndWorkspaceId(applicationName, workspaceId, permission)
+                .map(count -> count > 0);
     }
 
     @Override
@@ -978,5 +1026,21 @@ public class ApplicationServiceCEImpl extends BaseService<ApplicationRepository,
         analyticsProperties.put("applicationId", ObjectUtils.defaultIfNull(savedApplication.getId(), ""));
         analyticsProperties.put("orgId", ObjectUtils.defaultIfNull(savedApplication.getWorkspaceId(), ""));
         return analyticsProperties;
+    }
+
+    @Override
+    public Mono<Void> updateProtectedBranches(String applicationId, List<String> protectedBranches) {
+        return repository
+                .unprotectAllBranches(applicationId, applicationPermission.getEditPermission())
+                .then(Mono.defer(() -> {
+                    // Mono.defer is used to ensure the following code is executed only after the previous Mono
+                    // completes
+                    if (protectedBranches != null && !protectedBranches.isEmpty()) {
+                        return repository.protectBranchedApplications(
+                                applicationId, protectedBranches, applicationPermission.getEditPermission());
+                    }
+                    return Mono.empty();
+                }))
+                .then();
     }
 }

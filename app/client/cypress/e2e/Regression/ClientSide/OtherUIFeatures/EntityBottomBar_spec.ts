@@ -1,5 +1,4 @@
 import * as _ from "../../../../support/Objects/ObjectsCore";
-const OnboardingLocator = require("../../../../locators/FirstTimeUserOnboarding.json");
 import { PageType } from "../../../../support/Pages/DebuggerHelper";
 const datasource = require("../../../../locators/DatasourcesEditor.json");
 
@@ -33,16 +32,15 @@ describe("Entity bottom bar", () => {
     _.debuggerHelper.AssertSelectedTab("Response");
     //verify if bottom bar is closed on switching to canvas page.
     _.entityExplorer.NavigateToSwitcher("Widgets");
-    _.debuggerHelper.AssertClosed();
+    _.debuggerHelper.AssertSelectedTab("Errors");
   });
 
   it("3. Api bottom pane should be collapsable", () => {
     _.entityExplorer.NavigateToSwitcher("Explorer");
-    _.apiPage.CreateAndFillApi(_.tedTestConfig.mockApiUrl);
-    //Verify if bottom bar opens on clicking debugger icon in api page.
-    _.debuggerHelper.ClickDebuggerIcon();
-    _.debuggerHelper.AssertOpen(PageType.API);
-    //Verify if selected tab is errors in tab title.
+    _.apiPage.CreateAndFillApi(
+      _.dataManager.dsValues[_.dataManager.defaultEnviorment].mockApiUrl,
+    );
+    //Verify that the errors tab is still open.
     _.debuggerHelper.AssertSelectedTab("Errors");
     //Verify if bottom bar is closed on clicking close icon in API page.
     _.debuggerHelper.CloseBottomBar();
@@ -50,6 +48,8 @@ describe("Entity bottom bar", () => {
     //Verify if bottom bar opens on clicking debugger icon in api page.
     _.debuggerHelper.ClickDebuggerIcon();
     _.debuggerHelper.AssertOpen(PageType.API);
+    //Verify if selected tab is errors in tab title.
+    _.debuggerHelper.AssertSelectedTab("Errors");
     //Verify if bottom bar is open on executing api.
     _.apiPage.RunAPI();
     _.agHelper.Sleep(1000);
@@ -66,15 +66,7 @@ describe("Entity bottom bar", () => {
     _.debuggerHelper.AssertClosed();
     //Verify if bottom bar opens on clicking debugger icon in datasource page.
     _.debuggerHelper.ClickDebuggerIcon();
-    _.debuggerHelper.AssertOpen(PageType.DataSources);
-    //Verify if selected tab is errors in tab title.
-    _.debuggerHelper.AssertSelectedTab("Errors");
-    //Verify if bottom bar is closed on clicking close icon in datasource page.
-    _.debuggerHelper.CloseBottomBar();
     _.debuggerHelper.AssertClosed();
-    //Verify if bottom bar opens on clicking debugger icon in datasource page.
-    _.debuggerHelper.ClickDebuggerIcon();
-    _.debuggerHelper.AssertOpen(PageType.DataSources);
   });
 
   it("excludeForAirgap", "5. Query bottom bar should be collapsable", () => {
@@ -107,7 +99,7 @@ describe("Entity bottom bar", () => {
       _.debuggerHelper.AssertSelectedTab("Response");
       // clean up
       _.dataSources.DeleteQuery("Query1");
-      _.dataSources.DeleteDatasouceFromActiveTab(dbName);
+      _.dataSources.DeleteDatasourceFromWithinDS(dbName);
     });
   });
 
@@ -138,7 +130,7 @@ describe("Entity bottom bar", () => {
     // clean up
     _.dataSources.DeleteQuery("Query1");
     cy.get("@dsName").then(($dsName) => {
-      _.dataSources.DeleteDatasouceFromActiveTab($dsName as any);
+      _.dataSources.DeleteDatasourceFromWithinDS($dsName as any);
     });
   });
 });

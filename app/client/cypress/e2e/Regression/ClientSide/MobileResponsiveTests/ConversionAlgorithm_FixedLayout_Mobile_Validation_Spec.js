@@ -1,5 +1,4 @@
 import { agHelper, autoLayout } from "../../../../support/Objects/ObjectsCore";
-
 let testHeight;
 
 describe("Auto conversion algorithm usecases for fixed Layout", function () {
@@ -66,5 +65,6 @@ describe("Auto conversion algorithm usecases for fixed Layout", function () {
               });
           });
       });
+    agHelper.Sleep();
   });
 });

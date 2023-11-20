@@ -6,7 +6,7 @@ import {
   table,
   debuggerHelper,
   peekOverlay,
-  tedTestConfig,
+  dataManager,
 } from "../../../../support/Objects/ObjectsCore";
 
 describe("Peek overlay", () => {
@@ -14,10 +14,14 @@ describe("Peek overlay", () => {
     entityExplorer.DragDropWidgetNVerify("tablewidgetv2", 500, 100);
     entityExplorer.NavigateToSwitcher("Explorer");
     table.AddSampleTableData();
-    apiPage.CreateAndFillApi(tedTestConfig.mockApiUrl);
+    apiPage.CreateAndFillApi(
+      dataManager.dsValues[dataManager.defaultEnviorment].mockApiUrl,
+    );
     agHelper.Sleep(2000);
     apiPage.RunAPI();
-    apiPage.CreateAndFillApi(tedTestConfig.mockApiUrl);
+    apiPage.CreateAndFillApi(
+      dataManager.dsValues[dataManager.defaultEnviorment].mockApiUrl,
+    );
     agHelper.Sleep(2000);
 
     jsEditor.CreateJSObject(JsObjectContent, {

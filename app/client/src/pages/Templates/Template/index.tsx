@@ -10,8 +10,10 @@ import {
   createMessage,
   FORK_THIS_TEMPLATE,
 } from "@appsmith/constants/messages";
-import { templateIdUrl } from "RouteBuilder";
+import { templateIdUrl } from "@appsmith/RouteBuilder";
 import { Position } from "@blueprintjs/core";
+import { isImportingTemplateToAppSelector } from "selectors/templatesSelectors";
+import { useSelector } from "react-redux";
 
 const TemplateWrapper = styled.div`
   border: 1px solid var(--ads-v2-color-border);
@@ -70,7 +72,7 @@ const TemplateDatasources = styled.div`
 `;
 
 export interface TemplateProps {
-  isForkingEnabled: boolean;
+  hideForkTemplateButton: boolean;
   template: TemplateInterface;
   size?: string;
   onClick?: (id: string) => void;
@@ -93,6 +95,9 @@ export function TemplateLayout(props: TemplateLayoutProps) {
   const { datasources, description, functions, id, screenshotUrls, title } =
     props.template;
   const [showForkModal, setShowForkModal] = useState(false);
+  const isImportingTemplateToApp = useSelector(
+    isImportingTemplateToAppSelector,
+  );
   const onClick = () => {
     if (props.onClick) {
       props.onClick(id);
@@ -153,7 +158,7 @@ export function TemplateLayout(props: TemplateLayoutProps) {
                 );
               })}
             </TemplateDatasources>
-            {props.isForkingEnabled && (
+            {props.hideForkTemplateButton && (
               <Tooltip
                 content={createMessage(FORK_THIS_TEMPLATE)}
                 placement={Position.BOTTOM}
@@ -161,6 +166,9 @@ export function TemplateLayout(props: TemplateLayoutProps) {
                 <Button
                   className="t--fork-template fork-button"
                   isIconButton
+                  isLoading={
+                    props.onForkTemplateClick && isImportingTemplateToApp
+                  }
                   onClick={onForkButtonTrigger}
                   size="sm"
                   startIcon="plus"

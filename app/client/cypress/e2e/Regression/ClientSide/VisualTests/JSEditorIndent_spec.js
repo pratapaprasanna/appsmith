@@ -4,11 +4,15 @@ import {
   entityExplorer,
   homePage,
   jsEditor,
+  apiPage,
+  dataSources,
 } from "../../../../support/Objects/ObjectsCore";
 
 describe("JSEditor Indendation - Visual tests", () => {
   it("6. TC 1933 - jSEditor prettify verification on cloned application", () => {
-    const appname = localStorage.getItem("AppName");
+    const appName = localStorage.getItem("appName");
+    const workspaceName = localStorage.getItem("workspaceName");
+
     jsEditor.CreateJSObject(
       `export default {
 myFun1: () => {
@@ -54,11 +58,13 @@ myFun2: async () => {
     cy.get("div.CodeMirror").matchImageSnapshot("jsObjAfterPrettify6");
 
     // taking a snap after clicking inside the editor to make sure prettify has not reverted
+    agHelper.Sleep(110);
     agHelper.GetNClick(jsEditor._lineinJsEditor(26));
     cy.get("div.CodeMirror").matchImageSnapshot("jsObjAfterPrettify6");
 
     homePage.NavigateToHome();
-    homePage.ForkApplication(appname);
+    homePage.FilterApplication(workspaceName);
+    homePage.ForkApplication(appName);
     entityExplorer.ExpandCollapseEntity("Queries/JS");
     entityExplorer.SelectEntityByName("JSObject1", "Queries/JS");
     cy.get("div.CodeMirror").matchImageSnapshot("jsObjAfterPrettify6");
@@ -111,6 +117,7 @@ myFun2: async () => {
     cy.get("div.CodeMirror").matchImageSnapshot("jsObjAfterPrettify7");
 
     // taking a snap after clicking inside the editor to make sure prettify has not reverted
+    agHelper.Sleep(110);
     agHelper.GetNClick(jsEditor._lineinJsEditor(26));
     cy.get("div.CodeMirror").matchImageSnapshot("jsObjAfterPrettify7");
 
@@ -204,6 +211,7 @@ myFun2: async () => {
     cy.get("div.CodeMirror").matchImageSnapshot("jsObjAfterPrettify2");
 
     // taking a snap after clicking inside the editor to make sure prettify has not reverted
+    agHelper.Sleep(110);
     agHelper.GetNClick(jsEditor._lineinJsEditor(26));
     cy.get("div.CodeMirror").matchImageSnapshot("jsObjAfterPrettify2");
 
@@ -309,6 +317,7 @@ myFun2: async () => {
     cy.get("div.CodeMirror").matchImageSnapshot("jsObjAfterPrettify4");
 
     // taking a snap after clicking inside the editor to make sure prettify has not reverted
+    agHelper.Sleep(110);
     agHelper.GetNClick(jsEditor._lineinJsEditor(26));
     cy.get("div.CodeMirror").matchImageSnapshot("jsObjAfterPrettify4_1");
 
@@ -340,5 +349,22 @@ myFun2: async () => {
 
     cy.get("div.CodeMirror").type("{cmd+leftArrow}");
     cy.get("div.CodeMirror").matchImageSnapshot("jsObjAfterGoLineStartSmart5");
+  });
+
+  it("5. Bug 25325 Check if the JS Object in body field is formatted properly on save", () => {
+    apiPage.CreateApi("FirstAPI");
+    apiPage.SelectPaneTab("Body");
+    apiPage.SelectSubTab("JSON");
+    dataSources.EnterQuery(
+      `{{
+        {
+          "title": this.params.title,
+              "due": this.params.due,
+                  assignee: this.params.assignee
+                  }
+      }}`,
+    );
+    cy.get("body").type(agHelper.isMac ? "{meta}S" : "{ctrl}S");
+    cy.get(apiPage.jsonBody).matchImageSnapshot("formattedJSONBodyAfterSave");
   });
 });

@@ -10,6 +10,10 @@ import {
   apiPage,
   dataSources,
 } from "../../../../support/Objects/ObjectsCore";
+import EditorNavigation, {
+  SidebarButton,
+} from "../../../../support/Pages/EditorNavigation";
+
 let dsName: any, jsName: any;
 
 describe("JSObjects OnLoad Actions tests", function () {
@@ -30,20 +34,21 @@ describe("JSObjects OnLoad Actions tests", function () {
       dsName = $dsName;
     });
     cy.fixture("datasources").then((datasourceFormData: any) => {
+      EditorNavigation.ViaSidebar(SidebarButton.Pages);
       entityExplorer.ExpandCollapseEntity("Queries/JS");
       apiPage.CreateAndFillApi(
         "https://api.forismatic.com/api/1.0/?method=getQuote&lang=en&format=json",
         "Quotes",
         30000,
       );
-      apiPage.ToggleConfirmBeforeRunningApi(true);
+      apiPage.ToggleConfirmBeforeRunning(true);
 
       apiPage.CreateAndFillApi(
         datasourceFormData["randomTrumpApi"],
         "WhatTrumpThinks",
         30000,
       );
-      apiPage.ToggleConfirmBeforeRunningApi(true);
+      apiPage.ToggleConfirmBeforeRunning(true);
     });
     jsEditor.CreateJSObject(
       `export default {
@@ -112,7 +117,7 @@ describe("JSObjects OnLoad Actions tests", function () {
       //Commenting & changnig flow since either of confirmation modals can appear first!
 
       // //Confirmation - first JSObj then API
-      // agHelper.AssertElementVisible(
+      // agHelper.AssertElementVisibility(
       //   jsEditor._dialogBody((jsName as string) + ".callTrump"),
       // );
       // jsEditor.ConfirmationClick("No");
@@ -123,7 +128,7 @@ describe("JSObjects OnLoad Actions tests", function () {
       jsEditor.ConfirmationClick("No");
       agHelper.AssertContains("cancelled"); //Quotes
       //One Quotes confirmation - for API true
-      // agHelper.AssertElementVisible(jsEditor._dialogBody("Quotes"));
+      // agHelper.AssertElementVisibility(jsEditor._dialogBody("Quotes"));
       // jsEditor.ConfirmationClick("No");
       agHelper.WaitUntilAllToastsDisappear();
 
@@ -131,14 +136,14 @@ describe("JSObjects OnLoad Actions tests", function () {
       agHelper.AssertContains("cancelled"); //callTrump
 
       // //Another for API called via JS callQuotes()
-      // agHelper.AssertElementVisible(jsEditor._dialogBody("Quotes"));
+      // agHelper.AssertElementVisibility(jsEditor._dialogBody("Quotes"));
       // jsEditor.ConfirmationClick("No");
       //agHelper.WaitUntilToastDisappear('The action "Quotes" has failed');No toast appears!
 
       agHelper.AssertElementAbsence(jsEditor._dialogBody("WhatTrumpThinks")); //Since JS call is NO, dependent API confirmation should not appear
 
-      agHelper.RefreshPage(true, "viewPage");
-      // agHelper.AssertElementVisible(
+      agHelper.RefreshPage("viewPage");
+      // agHelper.AssertElementVisibility(
       //   jsEditor._dialogBody((jsName as string) + ".callTrump"),
       // );
       agHelper.AssertElementExist(jsEditor._dialogInDeployView);
@@ -147,17 +152,17 @@ describe("JSObjects OnLoad Actions tests", function () {
       //agHelper.GetNClick(".ads-v2-button__content-children", 1, true);
       agHelper.Sleep(2000);
 
-      //agHelper.AssertElementVisible(jsEditor._dialogBody("WhatTrumpThinks")); //Since JS call is Yes, dependent confirmation should appear aswell!
+      //agHelper.AssertElementVisibility(jsEditor._dialogBody("WhatTrumpThinks")); //Since JS call is Yes, dependent confirmation should appear aswell!
       agHelper.AssertElementExist(jsEditor._dialogInDeployView);
       jsEditor.ConfirmationClick("Yes"); //trumpy - api
       agHelper.Sleep(3000);
 
-      //agHelper.AssertElementVisible(jsEditor._dialogBody("Quotes"));
+      //agHelper.AssertElementVisibility(jsEditor._dialogBody("Quotes"));
       agHelper.AssertElementExist(jsEditor._dialogInDeployView);
       jsEditor.ConfirmationClick("Yes"); //quotes - api
 
       //agHelper.Sleep(2000);
-      //agHelper.AssertElementVisible(jsEditor._dialogBody("Quotes"));
+      //agHelper.AssertElementVisibility(jsEditor._dialogBody("Quotes"));
       //agHelper.AssertElementExist(jsEditor._dialogInDeployView);
       //agHelper.GetNClick(".ads-v2-button__content-children", 1, true);
       agHelper.Sleep(4000); //to let the api's call be finished & populate the text fields before validation!
@@ -197,7 +202,7 @@ describe("JSObjects OnLoad Actions tests", function () {
       apiPage.CreateAndFillApi(datasourceFormData.randomCatfactUrl, "CatFacts");
     });
     apiPage.ToggleOnPageLoadRun(true);
-    apiPage.ToggleConfirmBeforeRunningApi(true);
+    apiPage.ToggleConfirmBeforeRunning(true);
 
     entityExplorer.SelectEntityByName("Image1", "Widgets");
     propPane.EnterJSContext(
@@ -215,13 +220,13 @@ describe("JSObjects OnLoad Actions tests", function () {
     jsEditor.EnableDisableAsyncFuncSettings("callTrump", false, false); //OnPageLoad made true once mapped with widget
 
     deployMode.DeployApp();
-    agHelper.AssertElementVisible(jsEditor._dialogBody("CatFacts"));
+    agHelper.AssertElementVisibility(jsEditor._dialogBody("CatFacts"));
     jsEditor.ConfirmationClick("No");
     agHelper.ValidateToastMessage("CatFacts was cancelled");
 
     agHelper.WaitUntilToastDisappear("CatFacts was cancelled");
     agHelper.GetNClick(locators._widgetInDeployed("imagewidget"));
-    agHelper.AssertElementVisible(jsEditor._dialogBody("CatFacts"));
+    agHelper.AssertElementVisibility(jsEditor._dialogBody("CatFacts"));
     jsEditor.ConfirmationClick("Yes");
     cy.get(locators._toastMsg).contains(/Your cat fact|Oh No/g);
     deployMode.NavigateBacktoEditor();
@@ -240,7 +245,7 @@ describe("JSObjects OnLoad Actions tests", function () {
       30000,
     );
     //apiPage.OnPageLoadRun(true); //OnPageLoad made true after mapping to JSONForm
-    apiPage.ToggleConfirmBeforeRunningApi(true);
+    apiPage.ToggleConfirmBeforeRunning(true);
 
     dataSources.CreateQueryFromOverlay(
       dsName,
@@ -304,13 +309,14 @@ describe("JSObjects OnLoad Actions tests", function () {
       //jsEditor.EnableDisableAsyncFuncSettings("callCountry", false, true); Bug # 13826
 
       entityExplorer.SelectEntityByName("Select1", "Widgets");
-      propPane.UpdatePropertyFieldValue(
-        "Options",
+      propPane.EnterJSContext(
+        "Source Data",
         `{{ getCitiesList.data.map((row) => {
         return { label: row.city, value: row.city }
      })
   }}`,
       );
+
       agHelper.ValidateToastMessage(
         "[getCitiesList] will be executed automatically on page load",
       );
@@ -340,7 +346,7 @@ describe("JSObjects OnLoad Actions tests", function () {
       ); //callBooks confirmation also does not appear due to 13646
 
       entityExplorer.SelectEntityByName("JSONForm1");
-      propPane.UpdatePropertyFieldValue("Source data", "{{getBooks.data}}");
+      propPane.EnterJSContext("sourcedata", "{{getBooks.data}}", true, false);
       //this toast is not coming due to existing JSON date errors but its made true at API
       //agHelper.ValidateToastMessage("[getBooks] will be executed automatically on page load");
     });
@@ -348,7 +354,7 @@ describe("JSObjects OnLoad Actions tests", function () {
 
   it("4. Tc #1646 - Honouring the order of execution & Bug 13826 + Bug 13646 - Delpoy page", () => {
     deployMode.DeployApp();
-    agHelper.AssertElementVisible(jsEditor._dialogBody("getBooks"));
+    agHelper.AssertElementVisibility(jsEditor._dialogBody("getBooks"));
     jsEditor.ConfirmationClick("No");
     agHelper.ValidateToastMessage("getBooks was cancelled");
     agHelper
@@ -365,7 +371,7 @@ describe("JSObjects OnLoad Actions tests", function () {
 
     agHelper.WaitUntilToastDisappear("getBooks was cancelled");
     agHelper.GetNClick(locators._widgetInDeployed("imagewidget"));
-    agHelper.AssertElementVisible(jsEditor._dialogBody("getBooks"));
+    agHelper.AssertElementVisibility(jsEditor._dialogBody("getBooks"));
     jsEditor.ConfirmationClick("Yes");
     //callBooks, getId confirmations also expected aft bug 13646 is fixed & covering tc 1646
 
@@ -378,7 +384,7 @@ describe("JSObjects OnLoad Actions tests", function () {
     //   //.then(($url) => expect($url).not.be.empty);//failing at time as its not waiting for timeout!
 
     deployMode.NavigateBacktoEditor();
-    agHelper.AssertElementVisible(jsEditor._dialogBody("getBooks"));
+    agHelper.AssertElementVisibility(jsEditor._dialogBody("getBooks"));
     jsEditor.ConfirmationClick("No");
     agHelper.ValidateToastMessage("getBooks was cancelled");
 

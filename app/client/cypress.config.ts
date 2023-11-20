@@ -6,8 +6,7 @@ export default defineConfig({
   requestTimeout: 60000,
   responseTimeout: 60000,
   pageLoadTimeout: 60000,
-  videoUploadOnPasses: false,
-  videoCompression: false,
+  video: true,
   numTestsKeptInMemory: 5,
   experimentalMemoryManagement: true,
   reporterOptions: {
@@ -17,7 +16,7 @@ export default defineConfig({
     json: false,
   },
   chromeWebSecurity: false,
-  viewportHeight: 1100,
+  viewportHeight: 1200,
   viewportWidth: 1400,
   scrollBehavior: "center",
   retries: {

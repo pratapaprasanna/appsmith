@@ -3,7 +3,12 @@ import {
   entityExplorer,
   entityItems,
   dataSources,
+  draggableWidgets,
+  propPane,
+  dataManager,
+  homePage,
 } from "../../../support/Objects/ObjectsCore";
+import { Widgets } from "../../../support/Pages/DataSources";
 
 describe("Validate Arango & CURL Import Datasources", () => {
   let dsName: any,
@@ -11,54 +16,47 @@ describe("Validate Arango & CURL Import Datasources", () => {
     containerName = "arangodb";
   before("Create a new Arango DS", () => {
     dataSources.StartContainerNVerify("Arango", containerName, 20000);
-    dataSources.CreateDataSource("Arango");
+    homePage.CreateNewWorkspace("ArangoDS", true);
+    homePage.CreateAppInWorkspace("ArangoDS", "ArangoDSApp");
+    dataSources.CreateDataSource("ArangoDB");
     cy.get("@dsName").then(($dsName) => {
       dsName = $dsName;
     });
   });
 
   it(`1. Create collection ${collectionName} into _system DB & Add data into it via curl`, () => {
-    cy.fixture("datasources").then((datasourceFormData) => {
-      let curlCollectionCreate =
-        `curl --request POST \
+    let curlCollectionCreate =
+      `curl --request POST \
     --url http://` +
-        datasourceFormData["arango-host"] +
-        `:` +
-        datasourceFormData["arango-port"] +
-        `/_api/collection \
+      dataManager.dsValues[dataManager.defaultEnviorment].arango_host +
+      `:` +
+      dataManager.dsValues[dataManager.defaultEnviorment].arango_port +
+      `/_api/collection \
     --header 'authorization: Basic cm9vdDpBcmFuZ28=' \
     --header 'content-type: application/json' \
     --data '{
       "name": "` +
-        collectionName +
-        `",
+      collectionName +
+      `",
       "type": 2,
       "keyOptions": {
           "type": "autoincrement",
           "allowUserKeys": false
       }
     }'`;
-      dataSources.FillCurlNImport(curlCollectionCreate);
-      agHelper.ActionContextMenuWithInPane({
-        action: "Delete",
-        entityType: entityItems.Api,
-      });
-      entityExplorer.ExpandCollapseEntity("Datasources");
-      entityExplorer.ExpandCollapseEntity(dsName);
-      entityExplorer.ActionContextMenuByEntityName({
-        entityNameinLeftSidebar: dsName,
-        action: "Refresh",
-      });
-      agHelper.AssertElementVisible(
-        entityExplorer._entityNameInExplorer(collectionName),
-      );
-      //Add data into this newly created collection
-      let curlDataAdd =
-        `curl --request POST --url http://` +
-        datasourceFormData["arango-host"] +
-        `:` +
-        datasourceFormData["arango-port"] +
-        `/_api/document/${collectionName} \
+    dataSources.FillCurlNImport(curlCollectionCreate);
+    agHelper.ActionContextMenuWithInPane({
+      action: "Delete",
+      entityType: entityItems.Api,
+    });
+
+    //Add data into this newly created collection
+    let curlDataAdd =
+      `curl --request POST --url http://` +
+      dataManager.dsValues[dataManager.defaultEnviorment].arango_host +
+      `:` +
+      dataManager.dsValues[dataManager.defaultEnviorment].arango_port +
+      `/_api/document/${collectionName} \
       --header 'authorization: Basic cm9vdDpBcmFuZ28=' \
       --header 'content-type: application/json' \
       --data '[
@@ -127,22 +125,19 @@ describe("Validate Arango & CURL Import Datasources", () => {
       }
     ]'`;
 
-      dataSources.FillCurlNImport(curlDataAdd);
-      agHelper.ActionContextMenuWithInPane({
-        action: "Delete",
-        entityType: entityItems.Api,
-      });
-      entityExplorer.ExpandCollapseEntity(dsName);
-      entityExplorer.ActionContextMenuByEntityName({
-        entityNameinLeftSidebar: dsName,
-        action: "Refresh",
-      }); //needed for the added data to reflect in template queries
+    dataSources.FillCurlNImport(curlDataAdd);
+    agHelper.ActionContextMenuWithInPane({
+      action: "Delete",
+      entityType: entityItems.Api,
     });
   });
 
-  it("2. Run Select, Create, Update, Delete & few more queries on the created collection", () => {
-    //Select's own query
-    entityExplorer.ActionTemplateMenuByEntityName(
+  it("2. Run Select, Create, Update, Delete & few more queries on the created collection + Widget Binding", () => {
+    entityExplorer.DragDropWidgetNVerify(draggableWidgets.INPUT_V2);
+    propPane.UpdatePropertyFieldValue("Default value", "Brazil");
+    //Create a select query
+    dataSources.createQueryWithDatasourceSchemaTemplate(
+      dsName,
       `${collectionName}`,
       "Select",
     );
@@ -166,14 +161,15 @@ describe("Validate Arango & CURL Import Datasources", () => {
     dataSources.AssertQueryTableResponse(0, "Japan");
 
     //Insert a new place
-    entityExplorer.ActionTemplateMenuByEntityName(
+    dataSources.createQueryWithDatasourceSchemaTemplate(
+      dsName,
       `${collectionName}`,
       "Create",
     );
 
     query = `INSERT
     {
-      "country": "Brazil",
+      "country": "{{Input1.text}}",
       "places_to_visit": [
         {
           "name": "Christ the Redeemer",
@@ -216,11 +212,12 @@ describe("Validate Arango & CURL Import Datasources", () => {
     dataSources.RunQueryNVerifyResponseViews(5); //Verify all records are filtered
     dataSources.AssertQueryTableResponse(0, "Japan");
     dataSources.AssertQueryTableResponse(1, "Mount Fuji");
-    dataSources.AssertQueryTableResponse(6, "Brazil");
+    dataSources.AssertQueryTableResponse(6, "Brazil"); //Widget binding is verified here
     dataSources.AssertQueryTableResponse(7, "Iguazu Falls"); //making sure new inserted record is also considered for filtering
 
     //Update Japan to Australia
-    entityExplorer.ActionTemplateMenuByEntityName(
+    dataSources.createQueryWithDatasourceSchemaTemplate(
+      dsName,
       `${collectionName}`,
       "Update",
     );
@@ -247,27 +244,38 @@ describe("Validate Arango & CURL Import Datasources", () => {
     dataSources.EnterQuery(query);
     dataSources.RunQueryNVerifyResponseViews();
 
-    entityExplorer.ActionTemplateMenuByEntityName(
+    dataSources.createQueryWithDatasourceSchemaTemplate(
+      dsName,
       `${collectionName}`,
       "Select",
     );
+    query = `FOR document IN ${collectionName}
+    FILTER document._key == "1"
+    RETURN document`;
+    dataSources.EnterQuery(query);
     dataSources.RunQueryNVerifyResponseViews(1);
     dataSources.AssertQueryTableResponse(3, "Australia");
 
     //Delete record from collection
-    entityExplorer.ActionTemplateMenuByEntityName(
+    dataSources.createQueryWithDatasourceSchemaTemplate(
+      dsName,
       `${collectionName}`,
       "Delete",
     );
+    query = `REMOVE "1" in ${collectionName}`;
+    dataSources.EnterQuery(query);
     dataSources.RunQueryNVerifyResponseViews(1); //Removing Australia
 
     //Verify no records return for the deleted key
     query = `FOR document IN ${collectionName}
-    RETURN { country: document.country }`;
-    entityExplorer.ActionTemplateMenuByEntityName(
+    FILTER document._key == "1"
+    RETURN document`;
+    dataSources.createQueryWithDatasourceSchemaTemplate(
+      dsName,
       `${collectionName}`,
       "Select",
     );
+    dataSources.EnterQuery(query);
     dataSources.RunQuery();
     agHelper
       .GetText(dataSources._noRecordFound)
@@ -283,6 +291,27 @@ describe("Validate Arango & CURL Import Datasources", () => {
     dataSources.AssertQueryTableResponse(0, "France");
     dataSources.AssertQueryTableResponse(1, "USA");
     dataSources.AssertQueryTableResponse(2, "Brazil");
+    entityExplorer.DeleteWidgetFromEntityExplorer("Input1");
+  });
+
+  it("3. Arango Widget Binding - from Suggested widget, Schema filter for Arango DS", () => {
+    agHelper.RefreshPage();
+    entityExplorer.DragDropWidgetNVerify(draggableWidgets.TABLE);
+    propPane.AssertPropertiesDropDownCurrentValue("Table data", "Connect data");
+    entityExplorer.NavigateToSwitcher("Explorer");
+    entityExplorer.SelectEntityByName("Query6");
+    //dataSources.FilterAndVerifyDatasourceSchemaBySearch("countries");
+    dataSources.VerifyTableSchemaOnQueryEditor(collectionName);
+    dataSources.RunQuery();
+    dataSources.AddSuggestedWidget(Widgets.Table); //Binding to new table from schema explorer
+    propPane.AssertPropertiesDropDownCurrentValue("Table data", "Query6");
+
+    entityExplorer.SelectEntityByName("Query6");
+    dataSources.AddSuggestedWidget(
+      Widgets.Table,
+      dataSources._addSuggestedExisting,
+    );
+    propPane.AssertPropertiesDropDownCurrentValue("Table data", "Query6");
   });
 
   //To add test for duplicate collection name
@@ -294,28 +323,21 @@ describe("Validate Arango & CURL Import Datasources", () => {
 
     //Deleting collection via Curl
     //entityExplorer.CreateNewDsQuery("New cURL import", false); Script failing here, but manually working, to check
-    cy.fixture("datasources").then((datasourceFormData) => {
-      let curlDeleteCol =
-        `curl --request DELETE --url http://` +
-        datasourceFormData["arango-host"] +
-        `:` +
-        datasourceFormData["arango-port"] +
-        `/_db/_system/_api/collection/${collectionName} --header 'authorization: Basic cm9vdDpBcmFuZ28='`;
-      //dataSources.ImportCurlNRun(curlDeleteCol);
-      dataSources.FillCurlNImport(curlDeleteCol);
-      agHelper.ActionContextMenuWithInPane({
-        action: "Delete",
-        entityType: entityItems.Api,
-      }); //Deleting api created
-      entityExplorer.ExpandCollapseEntity(dsName);
-      entityExplorer.ActionContextMenuByEntityName({
-        entityNameinLeftSidebar: dsName,
-        action: "Refresh",
-      }); //needed for the deltion of ds to reflect
-      agHelper.AssertElementVisible(dataSources._noSchemaAvailable(dsName));
-      //Deleting datasource finally
-      dataSources.DeleteDatasouceFromWinthinDS(dsName);
-    });
+    let curlDeleteCol =
+      `curl --request DELETE --url http://` +
+      dataManager.dsValues[dataManager.defaultEnviorment].arango_host +
+      `:` +
+      dataManager.dsValues[dataManager.defaultEnviorment].arango_port +
+      `/_db/_system/_api/collection/${collectionName} --header 'authorization: Basic cm9vdDpBcmFuZ28='`;
+    //dataSources.ImportCurlNRun(curlDeleteCol);
+    dataSources.FillCurlNImport(curlDeleteCol);
+    agHelper.ActionContextMenuWithInPane({
+      action: "Delete",
+      entityType: entityItems.Api,
+    }); //Deleting api created
+
+    //Deleting datasource finally
+    dataSources.DeleteDatasourceFromWithinDS(dsName);
 
     dataSources.StopNDeleteContainer(containerName);
   });

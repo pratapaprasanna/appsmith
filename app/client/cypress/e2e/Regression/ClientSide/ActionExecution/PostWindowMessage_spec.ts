@@ -15,7 +15,8 @@ describe("Post window message", () => {
     entityExplorer.SelectEntityByName("Button1", "Widgets");
     propPane.SelectPlatformFunction("onClick", "Post message");
     agHelper.EnterActionValue("Message", "After postMessage");
-    agHelper.EnterActionValue("Target iframe", "Iframe1");
+    agHelper.GetNClick(propPane._windowTargetDropdown);
+    agHelper.GetNClick(locators._dropDownValue("Iframe1"), 0, true);
 
     entityExplorer.SelectEntityByName("Iframe1", "Widgets");
     propPane.UpdatePropertyFieldValue(
@@ -41,8 +42,8 @@ describe("Post window message", () => {
     );
     propPane.SelectPlatformFunction("onMessageReceived", "Show alert");
     agHelper.EnterActionValue("Message", "I got a message from iframe");
-    deployMode.DeployApp(locators._spanButton("Submit"));
-    agHelper.AssertElementVisible("#iframe-Iframe1");
+    deployMode.DeployApp(locators._buttonByText("Submit"));
+    agHelper.AssertElementVisibility("#iframe-Iframe1");
     agHelper.Sleep(5000); //allowing time for elements to load fully before clicking - for CI flaky
     cy.get("#iframe-Iframe1").then((element) => {
       element.contents().find("body").find("#iframe-button").click();

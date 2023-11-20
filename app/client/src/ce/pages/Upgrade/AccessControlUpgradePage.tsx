@@ -18,11 +18,14 @@ import {
   SECURITY_APPS_LEAST_PRIVILEGE_DETAIL1,
 } from "@appsmith/constants/messages";
 import useOnUpgrade from "utils/hooks/useOnUpgrade";
+import { RampFeature, RampSection } from "utils/ProductRamps/RampsControlList";
 
 export function AccessControlUpgradePage() {
   const { onUpgrade } = useOnUpgrade({
     logEventName: "GAC_UPGRADE_CLICK_ADMIN_SETTINGS",
     logEventData: { source: "Granular Access Control" },
+    featureName: RampFeature.Gac,
+    sectionName: RampSection.AdminSettings,
   });
 
   const header: Header = {
@@ -52,17 +55,17 @@ export function AccessControlUpgradePage() {
     ],
     targets: [
       <img
-        alt="Secure apps by the least privilege needed"
+        alt={createMessage(SECURITY_APPS_LEAST_PRIVILEGE)}
         key="secure-apps-least-privilege"
         src={SecureAppsLeastPrivilegeImage}
       />,
       <img
-        alt="Prevent accidental damage to data"
+        alt={createMessage(PREVENT_ACCIDENTAL_DAMAGE)}
         key="prevent-accidental-damage"
         src={PreventAccidentalDamageImage}
       />,
       <img
-        alt="Restrict public exposure of sensitive data"
+        alt={createMessage(RESTRICT_PUBLIC_EXPOSURE)}
         key="restrict-exposure-sensitive-data"
         src={RestrictPublicExposureImage}
       />,

@@ -8,11 +8,16 @@ import {
   table,
   assertHelper,
 } from "../../../../support/Objects/ObjectsCore";
+import { featureFlagIntercept } from "../../../../support/Objects/FeatureFlags";
 
 describe("Character Datatype tests", function () {
   let dsName: any, query: string;
 
   before("Create Postgress DS", () => {
+    featureFlagIntercept({
+      ab_gsheet_schema_enabled: true,
+      ab_mock_mongo_schema_enabled: true,
+    });
     agHelper.AddDsl("Datatypes/CharacterDTdsl");
     appSettings.OpenPaneAndChangeTheme("Pacific");
     dataSources.CreateDataSource("Postgres");
@@ -28,20 +33,15 @@ describe("Character Datatype tests", function () {
     agHelper.RenameWithInPane("createTable");
     agHelper.FocusElement(locators._codeMirrorTextArea);
     dataSources.RunQuery();
-    entityExplorer.ExpandCollapseEntity("Datasources");
-    entityExplorer.ExpandCollapseEntity(dsName);
-    entityExplorer.ActionContextMenuByEntityName({
-      entityNameinLeftSidebar: dsName,
-      action: "Refresh",
-    });
-    agHelper.AssertElementVisible(
-      entityExplorer._entityNameInExplorer("public.chartypes"),
-    );
   });
 
   it("2. Creating SELECT query - chartypes + Bug 14493", () => {
     query = `SELECT *, char_length("AsMany") as "AsMany-Len", char_length("Unlimited") as "Unlimited-Len" FROM public."chartypes" as charT LIMIT 10;`;
-    entityExplorer.ActionTemplateMenuByEntityName("public.chartypes", "SELECT");
+    dataSources.createQueryWithDatasourceSchemaTemplate(
+      dsName,
+      "public.chartypes",
+      "Select",
+    );
     dataSources.RunQuery();
     agHelper
       .GetText(dataSources._noRecordFound)
@@ -55,7 +55,11 @@ describe("Character Datatype tests", function () {
   it("3. Creating all queries - chartypes", () => {
     query = `INSERT INTO public."chartypes" ("One(1)", "AsMany", "Limited(4)", "Unlimited")
     VALUES ({{Insertone.text}}, {{Insertasmany.text}}, {{Insertlimited.text}}::varchar(4), {{Insertunlimited.text}});`;
-    entityExplorer.ActionTemplateMenuByEntityName("public.chartypes", "INSERT");
+    dataSources.createQueryWithDatasourceSchemaTemplate(
+      dsName,
+      "public.chartypes",
+      "Insert",
+    );
     dataSources.EnterQuery(query);
     agHelper.RenameWithInPane("insertRecord");
 
@@ -65,27 +69,42 @@ describe("Character Datatype tests", function () {
     "Limited(4)" = {{Updatelimited.text}}::varchar(4),
     "Unlimited" = {{Updateunlimited.text}}
   WHERE serialid = {{Table1.selectedRow.serialid}};`;
-    entityExplorer.ActionTemplateMenuByEntityName("public.chartypes", "UPDATE");
+    dataSources.createQueryWithDatasourceSchemaTemplate(
+      dsName,
+      "public.chartypes",
+      "Update",
+    );
     dataSources.EnterQuery(query);
     agHelper.RenameWithInPane("updateRecord");
 
     query = `DELETE FROM public."chartypes"`;
-    entityExplorer.ActionTemplateMenuByEntityName("public.chartypes", "DELETE");
+    dataSources.createQueryWithDatasourceSchemaTemplate(
+      dsName,
+      "public.chartypes",
+      "Delete",
+    );
     dataSources.EnterQuery(query);
     agHelper.RenameWithInPane("deleteAllRecords");
 
     query = `drop table public."chartypes"`;
-    entityExplorer.ActionTemplateMenuByEntityName("public.chartypes", "DELETE");
+    dataSources.createQueryWithDatasourceSchemaTemplate(
+      dsName,
+      "public.chartypes",
+      "Delete",
+    );
     dataSources.EnterQuery(query);
     agHelper.RenameWithInPane("dropTable");
 
     query = `DELETE FROM public."chartypes" WHERE serialId = {{Table1.selectedRow.serialid}};`;
-    entityExplorer.ActionTemplateMenuByEntityName("public.chartypes", "DELETE");
+    dataSources.createQueryWithDatasourceSchemaTemplate(
+      dsName,
+      "public.chartypes",
+      "Delete",
+    );
     dataSources.EnterQuery(query);
     agHelper.RenameWithInPane("deleteRecord");
 
     entityExplorer.ExpandCollapseEntity("Queries/JS", false);
-    entityExplorer.ExpandCollapseEntity(dsName, false);
   });
 
   it("4. Inserting record (null values) - chartypes", () => {
@@ -93,9 +112,9 @@ describe("Character Datatype tests", function () {
     deployMode.DeployApp();
     table.WaitForTableEmpty(); //asserting table is empty before inserting!
     agHelper.ClickButton("Run InsertQuery");
-    agHelper.AssertElementVisible(locators._modal);
+    agHelper.AssertElementVisibility(locators._modal);
     agHelper.ClickButton("Insert");
-    agHelper.AssertElementVisible(locators._spanButton("Run InsertQuery"));
+    agHelper.AssertElementVisibility(locators._buttonByText("Run InsertQuery"));
     table.ReadTableRowColumnData(0, 0, "v1", 2000).then(($cellData) => {
       expect($cellData).to.eq("1"); //asserting serial column is inserting fine in sequence
     });
@@ -115,7 +134,7 @@ describe("Character Datatype tests", function () {
 
   it("5. Inserting record (not null values) - chartypes", () => {
     agHelper.ClickButton("Run InsertQuery");
-    agHelper.AssertElementVisible(locators._modal);
+    agHelper.AssertElementVisibility(locators._modal);
     agHelper.EnterInputText("One_1_", "a");
     agHelper.EnterInputText(
       "AsMany",
@@ -129,7 +148,7 @@ describe("Character Datatype tests", function () {
       false,
     );
     agHelper.ClickButton("Insert");
-    agHelper.AssertElementVisible(locators._spanButton("Run InsertQuery"));
+    agHelper.AssertElementVisibility(locators._buttonByText("Run InsertQuery"));
     table.ReadTableRowColumnData(1, 0, "v1", 2000).then(($cellData) => {
       expect($cellData).to.eq("2"); //asserting serial column is inserting fine in sequence
     });
@@ -149,7 +168,7 @@ describe("Character Datatype tests", function () {
 
   it("6. Inserting another record (not null values) - chartypes", () => {
     agHelper.ClickButton("Run InsertQuery");
-    agHelper.AssertElementVisible(locators._modal);
+    agHelper.AssertElementVisibility(locators._modal);
     agHelper.EnterInputText("One_1_", "<");
     agHelper.EnterInputText(
       "AsMany",
@@ -163,7 +182,7 @@ describe("Character Datatype tests", function () {
       false,
     );
     agHelper.ClickButton("Insert");
-    agHelper.AssertElementVisible(locators._spanButton("Run InsertQuery"));
+    agHelper.AssertElementVisibility(locators._buttonByText("Run InsertQuery"));
     table.ReadTableRowColumnData(2, 0, "v1", 2000).then(($cellData) => {
       expect($cellData).to.eq("3"); //asserting serial column is inserting fine in sequence
     });
@@ -184,7 +203,7 @@ describe("Character Datatype tests", function () {
   it("7. Updating record (emtying some field) - chartypes", () => {
     table.SelectTableRow(2);
     agHelper.ClickButton("Run UpdateQuery");
-    agHelper.AssertElementVisible(locators._modal);
+    agHelper.AssertElementVisibility(locators._modal);
     agHelper.EnterInputText("One_1_", ">", true);
     agHelper.EnterInputText(
       "AsMany",
@@ -194,7 +213,7 @@ describe("Character Datatype tests", function () {
     agHelper.EnterInputText("Limited_4_", "Flights", true);
     agHelper.ClearInputText("Unlimited", false);
     agHelper.ClickButton("Update");
-    agHelper.AssertElementVisible(locators._spanButton("Run UpdateQuery"));
+    agHelper.AssertElementVisibility(locators._buttonByText("Run UpdateQuery"));
     table.ReadTableRowColumnData(2, 0, "v1", 2000).then(($cellData) => {
       expect($cellData).to.eq("3"); //asserting serial column is inserting fine in sequence
     });
@@ -228,7 +247,7 @@ describe("Character Datatype tests", function () {
 
   it("9. Updating record (null inserted record) - chartypes", () => {
     agHelper.ClickButton("Run UpdateQuery");
-    agHelper.AssertElementVisible(locators._modal);
+    agHelper.AssertElementVisibility(locators._modal);
     //agHelper.EnterInputText("One_1_", "&");
     agHelper.EnterInputText(
       "AsMany",
@@ -242,7 +261,7 @@ describe("Character Datatype tests", function () {
       false,
     );
     agHelper.ClickButton("Update");
-    agHelper.AssertElementVisible(locators._spanButton("Run UpdateQuery"));
+    agHelper.AssertElementVisibility(locators._buttonByText("Run UpdateQuery"));
     table.ReadTableRowColumnData(1, 0, "v1", 2000).then(($cellData) => {
       //since record updated is moving to last row in table - BUg 14347!
       expect($cellData).to.eq("1"); //asserting serial column is inserting fine in sequence
@@ -263,7 +282,7 @@ describe("Character Datatype tests", function () {
 
   it("10. Inserting another record (+ve record - to check serial column) - chartypes", () => {
     agHelper.ClickButton("Run InsertQuery");
-    agHelper.AssertElementVisible(locators._modal);
+    agHelper.AssertElementVisibility(locators._modal);
     agHelper.EnterInputText("One_1_", "e");
     agHelper.EnterInputText(
       "AsMany",
@@ -276,7 +295,7 @@ describe("Character Datatype tests", function () {
       false,
     );
     agHelper.ClickButton("Insert");
-    agHelper.AssertElementVisible(locators._spanButton("Run InsertQuery"));
+    agHelper.AssertElementVisibility(locators._buttonByText("Run InsertQuery"));
     table.ReadTableRowColumnData(2, 0, "v1", 2000).then(($cellData) => {
       expect($cellData).to.eq("4"); //asserting serial column is inserting fine in sequence
     });
@@ -297,7 +316,7 @@ describe("Character Datatype tests", function () {
   it("11. Deleting records - chartypes", () => {
     table.SelectTableRow(1);
     agHelper.ClickButton("DeleteQuery", 1);
-    agHelper.AssertElementVisible(locators._spanButton("Run InsertQuery"));
+    agHelper.AssertElementVisibility(locators._buttonByText("Run InsertQuery"));
     table.ReadTableRowColumnData(1, 0, "v1", 2000).then(($cellData) => {
       expect($cellData).not.to.eq("3"); //asserting 3rd record is deleted
     });
@@ -308,16 +327,16 @@ describe("Character Datatype tests", function () {
 
   it("12. Deleting all records from table - chartypes", () => {
     agHelper.GetNClick(locators._deleteIcon);
-    agHelper.AssertElementVisible(locators._spanButton("Run InsertQuery"));
+    agHelper.AssertElementVisibility(locators._buttonByText("Run InsertQuery"));
     agHelper.Sleep(2000);
     table.WaitForTableEmpty();
   });
 
   it("13. Inserting record (null record - to check serial column) - chartypes", () => {
     agHelper.ClickButton("Run InsertQuery");
-    agHelper.AssertElementVisible(locators._modal);
+    agHelper.AssertElementVisibility(locators._modal);
     agHelper.ClickButton("Insert");
-    agHelper.AssertElementVisible(locators._spanButton("Run InsertQuery"));
+    agHelper.AssertElementVisibility(locators._buttonByText("Run InsertQuery"));
     table.ReadTableRowColumnData(0, 0, "v1", 2000).then(($cellData) => {
       expect($cellData).to.eq("5"); //asserting serial column is inserting fine in sequence
     });
@@ -344,26 +363,16 @@ describe("Character Datatype tests", function () {
       expect($cellData).to.eq("0"); //Success response for dropped table!
     });
     entityExplorer.ExpandCollapseEntity("Queries/JS", false);
-    entityExplorer.ExpandCollapseEntity("Datasources");
-    entityExplorer.ExpandCollapseEntity(dsName);
-    entityExplorer.ActionContextMenuByEntityName({
-      entityNameinLeftSidebar: dsName,
-      action: "Refresh",
-    });
-    agHelper.AssertElementAbsence(
-      entityExplorer._entityNameInExplorer("public.chartypes"),
-    );
-    entityExplorer.ExpandCollapseEntity(dsName, false);
-    entityExplorer.ExpandCollapseEntity("Datasources", false);
+    dataSources.AssertTableInVirtuosoList(dsName, "public.chartypes", false);
   });
 
   it("15. Verify Deletion of the datasource after all created queries are deleted", () => {
-    dataSources.DeleteDatasouceFromWinthinDS(dsName, 409); //Since all queries exists
+    dataSources.DeleteDatasourceFromWithinDS(dsName, 409); //Since all queries exists
     entityExplorer.ExpandCollapseEntity("Queries/JS");
     entityExplorer.DeleteAllQueriesForDB(dsName);
     deployMode.DeployApp();
     deployMode.NavigateBacktoEditor();
     entityExplorer.ExpandCollapseEntity("Queries/JS");
-    dataSources.DeleteDatasouceFromWinthinDS(dsName, 200); //ProductLines, Employees pages are still using this ds
+    dataSources.DeleteDatasourceFromWithinDS(dsName, 200); //ProductLines, Employees pages are still using this ds
   });
 });

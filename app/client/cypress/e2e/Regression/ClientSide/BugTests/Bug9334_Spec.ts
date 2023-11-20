@@ -7,6 +7,9 @@ import {
   appSettings,
   entityExplorer,
 } from "../../../../support/Objects/ObjectsCore";
+import EditorNavigation, {
+  SidebarButton,
+} from "../../../../support/Pages/EditorNavigation";
 
 let dsName: any;
 
@@ -17,6 +20,7 @@ describe("Bug 9334: The Select widget value is sent as null when user switches b
     cy.get("@dsName").then(($dsName) => {
       dsName = $dsName;
     });
+    EditorNavigation.ViaSidebar(SidebarButton.Pages);
   });
 
   it("1. Create dummy pages for navigating", () => {
@@ -34,7 +38,7 @@ describe("Bug 9334: The Select widget value is sent as null when user switches b
     agHelper.AssertContains("Successfully generated a page");
     //assertHelper.AssertNetworkStatus("@getActions", 200);//Since failing sometimes
     assertHelper.AssertNetworkStatus("@postExecute", 200);
-    agHelper.GetNClick(dataSources._visibleTextSpan("Got it"));
+    agHelper.ClickButton("Got it");
     assertHelper.AssertNetworkStatus("@updateLayout", 200);
     table.WaitUntilTableLoad();
 
@@ -52,10 +56,11 @@ describe("Bug 9334: The Select widget value is sent as null when user switches b
     agHelper.AssertContains("Successfully generated a page");
     //assertHelper.AssertNetworkStatus("@getActions", 200);//Since failing sometimes
     assertHelper.AssertNetworkStatus("@postExecute", 200);
-    agHelper.GetNClick(dataSources._visibleTextSpan("Got it"));
+    agHelper.ClickButton("Got it");
     assertHelper.AssertNetworkStatus("@updateLayout", 200);
     table.WaitUntilTableLoad();
   });
+
   it("2. Navigate & Assert toast", () => {
     //Navigating between CRUD (Page3) & EmptyPage (Page2):
     entityExplorer.SelectEntityByName("Page1");

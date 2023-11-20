@@ -15,10 +15,15 @@ describe("Published mode toggle toast with debug flag in the url", function () {
   });
 
   it("1. Should not show any application related toasts", function () {
-    _.apiPage.CreateAndFillApi(_.tedTestConfig.mockApiUrl, "Correct_users");
+    _.apiPage.CreateAndFillApi(
+      _.dataManager.dsValues[_.dataManager.defaultEnviorment].mockApiUrl,
+      "Correct_users",
+    );
     _.apiPage.ToggleOnPageLoadRun(true);
     _.apiPage.CreateAndFillApi(
-      _.tedTestConfig.mockApiUrl.replace("mock-api", "mock-api2err"),
+      _.dataManager.dsValues[
+        _.dataManager.defaultEnviorment
+      ].mockApiUrl.replace("mock-api", "mock-api2err"),
       "Incorrect_users",
     );
     _.apiPage.ToggleOnPageLoadRun(true);

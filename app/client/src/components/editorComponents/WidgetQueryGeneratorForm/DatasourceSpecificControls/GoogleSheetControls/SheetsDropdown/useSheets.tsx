@@ -10,7 +10,7 @@ import {
   getGsheetsSheets,
   getisFetchingGsheetsSheets,
 } from "selectors/datasourceSelectors";
-import { getDatasource } from "selectors/entitiesSelector";
+import { getDatasource } from "@appsmith/selectors/entitiesSelector";
 import type { AppState } from "@appsmith/reducers";
 import AnalyticsUtil from "utils/AnalyticsUtil";
 import { getWidget } from "sagas/selectors";
@@ -67,6 +67,7 @@ export function useSheets() {
         sheetName: sheetObj.value,
         pluginType: config.datasourcePluginType,
         pluginName: config.datasourcePluginName,
+        connectionMode: config.datasourceConnectionMode,
       });
     },
     [config, updateConfig, dispatch, widget, selectedDatasource, propertyName],

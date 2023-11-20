@@ -1,4 +1,7 @@
 import * as _ from "../../../../support/Objects/ObjectsCore";
+import EditorNavigation, {
+  SidebarButton,
+} from "../../../../support/Pages/EditorNavigation";
 
 let dsName: any;
 
@@ -18,9 +21,9 @@ describe("datasource unsaved changes popup shows even without changes", function
       _.dataSources.SaveDatasource();
       _.agHelper.Sleep();
       _.dataSources.EditDatasource();
-      _.agHelper.GoBack();
-      _.agHelper.AssertElementVisible(_.dataSources._activeDS);
-      _.dataSources.DeleteDatasouceFromActiveTab(dsName);
+      _.dataSources.cancelDSEditAndAssertModalPopUp(false);
+      _.agHelper.AssertElementVisibility(_.dataSources._activeDS);
+      _.dataSources.DeleteDatasourceFromWithinDS(dsName);
     });
   });
 
@@ -42,28 +45,9 @@ describe("datasource unsaved changes popup shows even without changes", function
       // Even if headers, and query parameters are being initialized, we shouldnt see the popup
       // as those are not initialized by user
       _.dataSources.EditDatasource();
-      _.agHelper.GoBack();
-      _.agHelper.AssertElementVisible(_.dataSources._activeDS);
-
-      // Edit DS from active tab and add oauth2 details
-      _.dataSources.EditDSFromActiveTab(dsName);
-      _.dataSources.AddOAuth2AuthorizationCodeDetails(
-        testString,
-        testString,
-        testString,
-        testString,
-      );
-      _.dataSources.UpdateDatasource();
-      _.agHelper.Sleep();
-
-      // Now edit DS, and ensure that discard popup is not shown on back button click
-      // Even if custom authentication params are being initialized, we shouldnt see the popup
-      // as those are not initialized by user
-      _.dataSources.EditDatasource();
-      _.agHelper.GoBack();
-      _.agHelper.AssertElementVisible(_.dataSources._activeDS);
-
-      _.dataSources.DeleteDatasouceFromActiveTab(dsName);
+      _.dataSources.cancelDSEditAndAssertModalPopUp(false);
+      _.agHelper.AssertElementVisibility(_.dataSources._activeDS);
+      _.dataSources.DeleteDatasourceFromWithinDS(dsName);
     });
   });
 
@@ -87,11 +71,98 @@ describe("datasource unsaved changes popup shows even without changes", function
       // Assert that popup is visible
       _.dataSources.SaveDSFromDialog(false);
 
-      _.dataSources.DeleteDatasouceFromActiveTab(dsName);
+      _.dataSources.DeleteDatasourceFromWithinDS(dsName);
     });
   });
 
-  it("4. Bug 19801: Create new Auth DS, refresh the page without saving, we should not see discard popup", () => {
+  it("4. Validate that the DS modal shows up when cancel button is pressed after change", () => {
+    _.dataSources.NavigateToDSCreateNew();
+    _.agHelper.GenerateUUID();
+    cy.get("@guid").then((uid) => {
+      // using CreatePlugIn function instead of CreateDatasource,
+      // because I do not need to fill the datasource form and use the same default data
+      _.dataSources.CreatePlugIn("MongoDB");
+      dsName = "Mongo" + uid;
+      _.agHelper.RenameWithInPane(dsName, false);
+      _.dataSources.FillMongoDSForm();
+      _.dataSources.SaveDatasource();
+      _.agHelper.Sleep();
+
+      // Edit datasource, change connection string uri param and click on back button
+      _.dataSources.EditDatasource();
+      _.dataSources.FillMongoDatasourceFormWithURI();
+
+      // Assert that popup is visible
+      _.dataSources.cancelDSEditAndAssertModalPopUp(true, false);
+
+      _.dataSources.DeleteDatasourceFromWithinDS(dsName);
+    });
+  });
+
+  it("5. Validate that the DS modal does not show up when cancel button is pressed without any changes being made", () => {
+    _.dataSources.NavigateToDSCreateNew();
+    _.agHelper.GenerateUUID();
+    cy.get("@guid").then((uid) => {
+      // using CreatePlugIn function instead of CreateDatasource,
+      // because I do not need to fill the datasource form and use the same default data
+      _.dataSources.CreatePlugIn("MongoDB");
+      dsName = "Mongo" + uid;
+      _.agHelper.RenameWithInPane(dsName, false);
+      _.dataSources.FillMongoDSForm();
+      _.dataSources.SaveDatasource();
+      _.agHelper.Sleep();
+
+      // Edit datasource, change connection string uri param and click on back button
+      _.dataSources.EditDatasource();
+
+      // Assert that popup is visible
+      _.dataSources.cancelDSEditAndAssertModalPopUp(false, false);
+
+      _.dataSources.DeleteDatasourceFromWithinDS(dsName);
+    });
+  });
+
+  it("6. Validate that changes made to the form are not persisted after cancellation", () => {
+    _.dataSources.NavigateToDSCreateNew();
+    _.agHelper.GenerateUUID();
+    cy.get("@guid").then((uid) => {
+      // using CreatePlugIn function instead of CreateDatasource,
+      // because I do not need to fill the datasource form and use the same default data
+      _.dataSources.CreatePlugIn("MongoDB");
+      dsName = "Mongo" + uid;
+      _.agHelper.RenameWithInPane(dsName, false);
+      _.dataSources.FillMongoDSForm();
+      _.dataSources.SaveDatasource();
+      _.agHelper.Sleep();
+
+      // Edit datasource, change connection string uri param and click on back button
+      _.dataSources.EditDatasource();
+
+      _.agHelper.UpdateInputValue(_.dataSources._host(), "jargons");
+
+      // Assert that popup is visible
+      _.dataSources.cancelDSEditAndAssertModalPopUp(true, false);
+
+      // try to edit again
+      _.dataSources.EditDatasource();
+
+      // validate the input field value still remains as the saved value
+      _.agHelper.ValidateFieldInputValue(
+        _.dataSources._host(),
+        _.dataManager.dsValues.Staging.mongo_host,
+      );
+      _.agHelper.GetNClick(
+        _.dataSources._cancelEditDatasourceButton,
+        0,
+        true,
+        200,
+      );
+
+      _.dataSources.DeleteDatasourceFromWithinDS(dsName);
+    });
+  });
+
+  it("7. Bug 19801: Create new Auth DS, refresh the page without saving, we should not see discard popup", () => {
     _.dataSources.NavigateToDSCreateNew();
     _.agHelper.GenerateUUID();
     // using CreatePlugIn function instead of CreateDatasource,

@@ -9,6 +9,9 @@ import {
 import { expandLoadMoreOptions, OneClickBinding } from "./spec_utility";
 import oneClickBindingLocator from "../../../../locators/OneClickBindingLocator";
 import onboardingLocator from "../../../../locators/FirstTimeUserOnboarding.json";
+import EditorNavigation, {
+  SidebarButton,
+} from "../../../../support/Pages/EditorNavigation";
 
 const oneClickBinding = new OneClickBinding();
 
@@ -67,9 +70,9 @@ describe("excludeForAirgap", "One click binding control", () => {
       oneClickBindingLocator.otherActionSelector("Connect new datasource"),
     );
 
-    agHelper.AssertElementExist(onboardingLocator.datasourcePage);
+    agHelper.AssertElementExist(dataSources._newDatasourceContainer);
 
-    agHelper.GetNClick(onboardingLocator.datasourceBackBtn);
+    EditorNavigation.ViaSidebar(SidebarButton.Pages);
 
     agHelper.GetNClick(oneClickBindingLocator.datasourceDropdownSelector);
 
@@ -99,35 +102,29 @@ describe("excludeForAirgap", "One click binding control", () => {
 
     propPane.ToggleJSMode("Table data", false);
 
-    oneClickBinding.ChooseAndAssertForm(
-      "Users",
-      "Users",
-      "public.users",
-      "gender",
-    );
+    oneClickBinding.ChooseAndAssertForm("Users", "Users", "public.users", {
+      searchableColumn: "gender",
+    });
 
     propPane.MoveToTab("Style");
 
     propPane.MoveToTab("Content");
 
-    oneClickBinding.ChooseAndAssertForm(
-      "sample Movies",
-      "movies",
-      "movies",
-      "status",
-    );
+    oneClickBinding.ChooseAndAssertForm("sample Movies", "movies", "movies", {
+      searchableColumn: "status",
+    });
 
     entityExplorer.NavigateToSwitcher("Explorer");
     dataSources.NavigateToDSCreateNew();
     dataSources.CreatePlugIn("Mongo");
     agHelper.RenameWithInPane("myinvalidds", false);
 
-    agHelper.UpdateInputValue(dataSources._host, "127.0.0.1");
+    agHelper.UpdateInputValue(dataSources._host(), "127.0.0.1");
     agHelper.UpdateInputValue(dataSources._port, "8000");
 
     dataSources.SaveDatasource();
 
-    entityExplorer.NavigateToSwitcher("Widgets");
+    EditorNavigation.ViaSidebar(SidebarButton.Pages);
 
     agHelper.GetNClick(oneClickBindingLocator.datasourceDropdownSelector);
 
@@ -150,19 +147,17 @@ describe("excludeForAirgap", "One click binding control", () => {
       dataSources.CreatePlugIn("Mongo");
       agHelper.RenameWithInPane(`dummy${I}`, false);
 
-      agHelper.UpdateInputValue(dataSources._host, "127.0.0.1");
+      agHelper.UpdateInputValue(dataSources._host(), "127.0.0.1");
       agHelper.UpdateInputValue(dataSources._port, "8000");
 
       dataSources.SaveDatasource();
 
-      entityExplorer.NavigateToSwitcher("Widgets");
+      EditorNavigation.ViaSidebar(SidebarButton.Pages);
     });
 
     propPane.MoveToTab("Style");
 
     propPane.MoveToTab("Content");
-
-    entityExplorer.NavigateToSwitcher("Explorer");
 
     [1, 2, 3, 4, 5].forEach(() => {
       apiPage.CreateAndFillApi("http://www.example.com");

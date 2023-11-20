@@ -7,7 +7,7 @@ import {
 
 describe("JS to non-JS mode in Action Selector", () => {
   before(() => {
-    agHelper.AddDsl("promisesBtnDsl", locators._spanButton("Submit"));
+    agHelper.AddDsl("promisesBtnDsl", locators._buttonByText("Submit"));
   });
 
   it("1. should show fields appropriately for setinterval", () => {
@@ -251,16 +251,16 @@ describe("JS to non-JS mode in Action Selector", () => {
       0,
     );
     agHelper.GetNAssertElementText(
-      propPane._actionPopupTextLabel,
-      "Target iframe",
+      propPane._windowTargetDropdown,
+      "Window",
       "have.text",
-      1,
+      0,
     );
     agHelper.GetNAssertElementText(
       propPane._actionPopupTextLabel,
       "Allowed origins",
       "have.text",
-      2,
+      1,
     );
 
     propPane.EnterJSContext(

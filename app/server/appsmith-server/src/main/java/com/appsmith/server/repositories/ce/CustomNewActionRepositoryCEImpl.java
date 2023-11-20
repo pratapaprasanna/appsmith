@@ -1,5 +1,6 @@
 package com.appsmith.server.repositories.ce;
 
+import com.appsmith.external.models.CreatorContextType;
 import com.appsmith.external.models.PluginType;
 import com.appsmith.external.models.QActionConfiguration;
 import com.appsmith.external.models.QBranchAwareDomain;
@@ -7,24 +8,36 @@ import com.appsmith.server.acl.AclPermission;
 import com.appsmith.server.constants.FieldName;
 import com.appsmith.server.domains.NewAction;
 import com.appsmith.server.domains.QNewAction;
+import com.appsmith.server.dtos.PluginTypeAndCountDTO;
 import com.appsmith.server.repositories.BaseAppsmithRepositoryImpl;
 import com.appsmith.server.repositories.CacheableRepositoryHelper;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.model.UpdateOneModel;
 import com.mongodb.client.model.WriteModel;
 import com.mongodb.client.result.InsertManyResult;
+import com.mongodb.client.result.UpdateResult;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.ReactiveMongoOperations;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationOperation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.aggregation.Fields;
+import org.springframework.data.mongodb.core.aggregation.GroupOperation;
+import org.springframework.data.mongodb.core.aggregation.MatchOperation;
+import org.springframework.data.mongodb.core.aggregation.ProjectionOperation;
 import org.springframework.data.mongodb.core.convert.MongoConverter;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.util.CollectionUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -32,17 +45,25 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.group;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.newAggregation;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.project;
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 @Slf4j
 public class CustomNewActionRepositoryCEImpl extends BaseAppsmithRepositoryImpl<NewAction>
         implements CustomNewActionRepositoryCE {
 
+    private final MongoTemplate mongoTemplate;
+
     public CustomNewActionRepositoryCEImpl(
             ReactiveMongoOperations mongoOperations,
             MongoConverter mongoConverter,
-            CacheableRepositoryHelper cacheableRepositoryHelper) {
+            CacheableRepositoryHelper cacheableRepositoryHelper,
+            MongoTemplate mongoTemplate) {
         super(mongoOperations, mongoConverter, cacheableRepositoryHelper);
+        this.mongoTemplate = mongoTemplate;
     }
 
     @Override
@@ -355,9 +376,8 @@ public class CustomNewActionRepositoryCEImpl extends BaseAppsmithRepositoryImpl<
                         fieldName(QNewAction.newAction.publishedAction) + ".datasource._id")
                 .is(new ObjectId(datasourceId));
 
-        Criteria datasourceCriteria = where(FieldName.DELETED_AT)
-                .is(null)
-                .orOperator(unpublishedDatasourceCriteria, publishedDatasourceCriteria);
+        Criteria datasourceCriteria =
+                notDeleted().orOperator(unpublishedDatasourceCriteria, publishedDatasourceCriteria);
 
         Query query = new Query();
         query.addCriteria(datasourceCriteria);
@@ -554,5 +574,128 @@ public class CustomNewActionRepositoryCEImpl extends BaseAppsmithRepositoryImpl<
         Criteria defaultAppIdCriteria =
                 where(defaultResources + "." + FieldName.APPLICATION_ID).is(defaultApplicationId);
         return queryAll(List.of(defaultAppIdCriteria), permission);
+    }
+
+    @Override
+    public Mono<List<BulkWriteResult>> publishActions(String applicationId, AclPermission permission) {
+        Criteria applicationIdCriteria =
+                where(fieldName(QNewAction.newAction.applicationId)).is(applicationId);
+
+        Mono<Set<String>> permissionGroupsMono =
+                getCurrentUserPermissionGroupsIfRequired(Optional.ofNullable(permission));
+
+        return permissionGroupsMono.flatMap(permissionGroups -> {
+            AggregationOperation matchAggregationWithPermission = null;
+            if (permission == null) {
+                matchAggregationWithPermission = Aggregation.match(new Criteria().andOperator(notDeleted()));
+            } else {
+                matchAggregationWithPermission = Aggregation.match(
+                        new Criteria().andOperator(notDeleted(), userAcl(permissionGroups, permission)));
+            }
+            AggregationOperation matchAggregation = Aggregation.match(applicationIdCriteria);
+            AggregationOperation wholeProjection = Aggregation.project(NewAction.class);
+            AggregationOperation addFieldsOperation = Aggregation.addFields()
+                    .addField(fieldName(QNewAction.newAction.publishedAction))
+                    .withValueOf(Fields.field(fieldName(QNewAction.newAction.unpublishedAction)))
+                    .build();
+            Aggregation combinedAggregation = Aggregation.newAggregation(
+                    matchAggregation, matchAggregationWithPermission, wholeProjection, addFieldsOperation);
+            AggregationResults<NewAction> updatedResults =
+                    mongoTemplate.aggregate(combinedAggregation, NewAction.class, NewAction.class);
+            return bulkUpdate(updatedResults.getMappedResults());
+        });
+    }
+
+    @Override
+    public Mono<UpdateResult> archiveDeletedUnpublishedActions(String applicationId, AclPermission permission) {
+        Criteria applicationIdCriteria =
+                where(fieldName(QNewAction.newAction.applicationId)).is(applicationId);
+        String unpublishedDeletedAtFieldName = String.format(
+                "%s.%s",
+                fieldName(QNewAction.newAction.unpublishedAction),
+                fieldName(QNewAction.newAction.unpublishedAction.deletedAt));
+        Criteria deletedFromUnpublishedCriteria =
+                where(unpublishedDeletedAtFieldName).ne(null);
+
+        Update update = new Update();
+        update.set(FieldName.DELETED, true);
+        update.set(FieldName.DELETED_AT, Instant.now());
+        return updateByCriteria(List.of(applicationIdCriteria, deletedFromUnpublishedCriteria), update, permission);
+    }
+
+    @Override
+    public Flux<PluginTypeAndCountDTO> countActionsByPluginType(String applicationId) {
+        GroupOperation countByPluginType =
+                group(fieldName(QNewAction.newAction.pluginType)).count().as("count");
+        MatchOperation filterStates = match(where(fieldName(QNewAction.newAction.applicationId))
+                .is(applicationId)
+                .and(fieldName(QNewAction.newAction.deleted))
+                .ne(Boolean.TRUE));
+        ProjectionOperation projectionOperation = project("count").and("_id").as("pluginType");
+        Aggregation aggregation = newAggregation(filterStates, countByPluginType, projectionOperation);
+        return mongoOperations.aggregate(
+                aggregation, mongoOperations.getCollectionName(NewAction.class), PluginTypeAndCountDTO.class);
+    }
+
+    @Override
+    public Flux<NewAction> findAllByApplicationIdsWithoutPermission(
+            List<String> applicationIds, List<String> includeFields) {
+        Criteria applicationCriteria = Criteria.where(FieldName.APPLICATION_ID).in(applicationIds);
+        return queryAll(List.of(applicationCriteria), includeFields, null, null, NO_RECORD_LIMIT);
+    }
+
+    @Override
+    public Flux<NewAction> findAllUnpublishedActionsByContextIdAndContextType(
+            String contextId, CreatorContextType contextType, AclPermission permission, boolean includeJs) {
+        List<Criteria> criteriaList = new ArrayList<>();
+
+        String contextIdPath = fieldName(QNewAction.newAction.unpublishedAction) + "."
+                + fieldName(QNewAction.newAction.unpublishedAction.pageId);
+        String contextTypePath = fieldName(QNewAction.newAction.unpublishedAction) + "."
+                + fieldName(QNewAction.newAction.unpublishedAction.contextType);
+        Criteria contextIdAndContextTypeCriteria =
+                where(contextIdPath).is(contextId).and(contextTypePath).is(contextType);
+
+        criteriaList.add(contextIdAndContextTypeCriteria);
+
+        Criteria jsInclusionOrExclusionCriteria;
+        if (includeJs) {
+            jsInclusionOrExclusionCriteria =
+                    where(fieldName(QNewAction.newAction.pluginType)).is(PluginType.JS);
+        } else {
+            jsInclusionOrExclusionCriteria =
+                    where(fieldName(QNewAction.newAction.pluginType)).ne(PluginType.JS);
+        }
+
+        criteriaList.add(jsInclusionOrExclusionCriteria);
+
+        return queryAll(List.of(contextIdAndContextTypeCriteria), Optional.of(permission));
+    }
+
+    @Override
+    public Flux<NewAction> findAllPublishedActionsByContextIdAndContextType(
+            String contextId, CreatorContextType contextType, AclPermission permission, boolean includeJs) {
+        List<Criteria> criteriaList = new ArrayList<>();
+        String contextIdPath = fieldName(QNewAction.newAction.publishedAction) + "."
+                + fieldName(QNewAction.newAction.publishedAction.pageId);
+        String contextTypePath = fieldName(QNewAction.newAction.publishedAction) + "."
+                + fieldName(QNewAction.newAction.publishedAction.contextType);
+        Criteria contextIdAndContextTypeCriteria =
+                where(contextIdPath).is(contextId).and(contextTypePath).is(contextType);
+
+        criteriaList.add(contextIdAndContextTypeCriteria);
+
+        Criteria jsInclusionOrExclusionCriteria;
+        if (includeJs) {
+            jsInclusionOrExclusionCriteria =
+                    where(fieldName(QNewAction.newAction.pluginType)).is(PluginType.JS);
+        } else {
+            jsInclusionOrExclusionCriteria =
+                    where(fieldName(QNewAction.newAction.pluginType)).ne(PluginType.JS);
+        }
+
+        criteriaList.add(jsInclusionOrExclusionCriteria);
+
+        return queryAll(List.of(contextIdAndContextTypeCriteria), Optional.of(permission));
     }
 }

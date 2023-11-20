@@ -31,7 +31,7 @@ import {
   getIsExecutingJSAction,
   getJSActions,
   getJSCollectionParseErrors,
-} from "selectors/entitiesSelector";
+} from "@appsmith/selectors/entitiesSelector";
 import type { JSActionDropdownOption } from "./utils";
 import {
   convertJSActionsToDropdownOptions,
@@ -52,23 +52,25 @@ import {
   TabbedViewContainer,
 } from "./styledComponents";
 import { getJSPaneConfigSelectedTab } from "selectors/jsPaneSelectors";
-import type { EventLocation } from "utils/AnalyticsUtil";
-import {
-  hasDeleteActionPermission,
-  hasExecuteActionPermission,
-  hasManageActionPermission,
-} from "@appsmith/utils/permissionHelpers";
+import type { EventLocation } from "@appsmith/utils/analyticsUtilTypes";
 import {
   setCodeEditorCursorAction,
   setFocusableInputField,
 } from "actions/editorContextActions";
 import history from "utils/history";
-import { CursorPositionOrigin } from "reducers/uiReducers/editorContextReducer";
+import { CursorPositionOrigin } from "@appsmith/reducers/uiReducers/editorContextReducer";
 import LazyCodeEditor from "components/editorComponents/LazyCodeEditor";
 import styled from "styled-components";
 import { showDebuggerFlag } from "selectors/debuggerSelectors";
 import { Tab, TabPanel, Tabs, TabsList } from "design-system";
 import { JSEditorTab } from "reducers/uiReducers/jsPaneReducer";
+import { useFeatureFlag } from "utils/hooks/useFeatureFlag";
+import { FEATURE_FLAG } from "@appsmith/entities/FeatureFlag";
+import {
+  getHasDeleteActionPermission,
+  getHasExecuteActionPermission,
+  getHasManageActionPermission,
+} from "@appsmith/utils/BusinessFeatures/permissionPageHelpers";
 
 interface JSFormProps {
   jsCollection: JSCollection;
@@ -92,9 +94,6 @@ const SecondaryWrapper = styled.div`
     .ads-v2-tabs,
     &.js-editor-tab {
       height: 100%;
-    }
-    .js-editor-tab .js-editor {
-      padding-top: var(--ads-v2-spaces-4);
     }
   }
 `;
@@ -165,13 +164,18 @@ function JSEditorForm({ jsCollection: currentJSCollection }: Props) {
     }
   }, [hash]);
 
-  const isChangePermitted = hasManageActionPermission(
+  const isFeatureEnabled = useFeatureFlag(FEATURE_FLAG.license_gac_enabled);
+
+  const isChangePermitted = getHasManageActionPermission(
+    isFeatureEnabled,
     currentJSCollection?.userPermissions || [],
   );
-  const isExecutePermitted = hasExecuteActionPermission(
+  const isExecutePermitted = getHasExecuteActionPermission(
+    isFeatureEnabled,
     currentJSCollection?.userPermissions || [],
   );
-  const isDeletePermitted = hasDeleteActionPermission(
+  const isDeletePermitted = getHasDeleteActionPermission(
+    isFeatureEnabled,
     currentJSCollection?.userPermissions || [],
   );
 
@@ -309,10 +313,7 @@ function JSEditorForm({ jsCollection: currentJSCollection }: Props) {
         <Form onSubmit={(event) => event.preventDefault()}>
           <StyledFormRow className="form-row-header">
             <NameWrapper className="t--nameOfJSObject">
-              <JSObjectNameEditor
-                disabled={!isChangePermitted}
-                page="JS_PANE"
-              />
+              <JSObjectNameEditor disabled={!isChangePermitted} />
             </NameWrapper>
             <ActionButtons className="t--formActionButtons">
               <MoreJSCollectionsMenu
@@ -369,6 +370,7 @@ function JSEditorForm({ jsCollection: currentJSCollection }: Props) {
                     <TabPanel value={JSEditorTab.CODE}>
                       <div className="js-editor-tab">
                         <LazyCodeEditor
+                          AIAssisted
                           blockCompletions={blockCompletions}
                           border={CodeEditorBorder.NONE}
                           borderLess

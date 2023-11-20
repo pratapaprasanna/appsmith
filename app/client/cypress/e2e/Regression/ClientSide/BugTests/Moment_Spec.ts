@@ -25,9 +25,7 @@ describe("Bug #14299 - The data from the query does not show up on the widget", 
 
   it("1. Creating query & JSObject", () => {
     query = `SELECT id, name, date_of_birth, date_of_death, nationality FROM public."astronauts" LIMIT 20;`;
-    dataSources.NavigateFromActiveDS(dsName, true);
-    dataSources.EnterQuery(query);
-    agHelper.RenameWithInPane("getAstronauts");
+    dataSources.CreateQueryAfterDSSaved(query, "getAstronauts");
     jsEditor.CreateJSObject(
       `export default {
       runAstros: () => {
@@ -39,6 +37,7 @@ describe("Bug #14299 - The data from the query does not show up on the widget", 
         completeReplace: true,
         toRun: false,
         shouldCreateNewJSObj: true,
+        prettify: false,
       },
     );
 
@@ -111,8 +110,7 @@ describe("Bug #14299 - The data from the query does not show up on the widget", 
   after(
     "Verify Deletion of the datasource after all created queries are deleted",
     () => {
-      deployMode.NavigateBacktoEditor();
-      agHelper.AssertContains("ran successfully"); //runAstros triggered on PageLaoad of Edit page!
+      deployMode.NavigateBacktoEditor("ran successfully"); //runAstros triggered on PageLaoad of Edit page!
       entityExplorer.ExpandCollapseEntity("Queries/JS");
       entityExplorer.ActionContextMenuByEntityName({
         entityNameinLeftSidebar: "JSObject1",
@@ -123,8 +121,7 @@ describe("Bug #14299 - The data from the query does not show up on the widget", 
       agHelper.WaitUntilAllToastsDisappear();
       deployMode.DeployApp(locators._widgetInDeployed("tablewidget"), false);
       deployMode.NavigateBacktoEditor();
-      entityExplorer.ExpandCollapseEntity("Datasources");
-      dataSources.DeleteDatasouceFromWinthinDS(dsName, 200);
+      dataSources.DeleteDatasourceFromWithinDS(dsName, 200);
     },
   );
 });

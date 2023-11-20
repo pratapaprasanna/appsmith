@@ -23,14 +23,15 @@ import * as rateWidgetMigrations from "./migrations/RateWidgetMigrations";
 import * as codeScannerWidgetMigrations from "./migrations/CodeScannerWidgetMigrations";
 import * as migrateLabelPosition from "./migrations/MigrateLabelPosition";
 import * as migrateAutoHeight from "./migrations/autoHeightMigrations";
+import * as chartMigrations from "./migrations/ChartWidget";
 
-type Migration = {
+interface Migration {
   functionLookup: {
     moduleObj: any;
     functionName: string;
   }[];
   version: number | undefined;
-};
+}
 
 /**
  * Migrations is an array of objects, were each object has
@@ -772,6 +773,69 @@ const migrations: Migration[] = [
       },
     ],
     version: 79,
+  },
+  {
+    functionLookup: [
+      {
+        moduleObj: selectWidgetMigration,
+        functionName: "migrateSelectWidgetOptionToSourceData",
+      },
+    ],
+    version: 80,
+  },
+  {
+    functionLookup: [
+      {
+        moduleObj: selectWidgetMigration,
+        functionName: "migrateSelectWidgetSourceDataBindingPathList",
+      },
+    ],
+    version: 81,
+  },
+  {
+    functionLookup: [
+      {
+        moduleObj: chartMigrations,
+        functionName: "migrateChartWidgetLabelOrientationStaggerOption",
+      },
+    ],
+    version: 82,
+  },
+  {
+    functionLookup: [
+      {
+        moduleObj: chartMigrations,
+        functionName: "migrateAddShowHideDataPointLabels",
+      },
+    ],
+    version: 83,
+  },
+  {
+    functionLookup: [
+      {
+        moduleObj: selectWidgetMigration,
+        functionName: "migrateSelectWidgetAddSourceDataPropertyPathList",
+      },
+    ],
+    version: 84,
+  },
+  {
+    functionLookup: [
+      {
+        moduleObj: chartMigrations,
+        functionName: "migrateDefaultValuesForCustomEChart",
+      },
+    ],
+    version: 85,
+  },
+  {
+    functionLookup: [
+      {
+        moduleObj: tableMigrations,
+        functionName: "migrateTableServerSideFiltering",
+      },
+    ],
+    version: 86,
   },
 ];
 

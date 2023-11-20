@@ -1,6 +1,6 @@
 import React, { Suspense, useEffect } from "react";
 import history from "utils/history";
-import AppHeader from "pages/common/AppHeader";
+import AppHeader from "@appsmith/pages/common/AppHeader";
 import { Redirect, Route, Router, Switch } from "react-router-dom";
 import {
   ADMIN_SETTINGS_CATEGORY_PATH,
@@ -25,6 +25,7 @@ import {
   VIEWER_PATCH_PATH,
   VIEWER_PATH,
   VIEWER_PATH_DEPRECATED,
+  WIDGET_BUILDER,
   WORKSPACE_URL,
 } from "constants/routes";
 import WorkspaceLoader from "pages/workspace/loader";
@@ -45,15 +46,20 @@ import * as Sentry from "@sentry/react";
 import { getSafeCrash, getSafeCrashCode } from "selectors/errorSelectors";
 import UserProfile from "pages/UserProfile";
 import { getCurrentUser } from "actions/authActions";
-import { getCurrentUserLoading } from "selectors/usersSelectors";
+import {
+  getCurrentUserLoading,
+  getFeatureFlagsFetching,
+} from "selectors/usersSelectors";
 import Setup from "pages/setup";
-import SettingsLoader from "pages/Settings/loader";
+import SettingsLoader from "pages/AdminSettings/loader";
 import SignupSuccess from "pages/setup/SignupSuccess";
 import type { ERROR_CODES } from "@appsmith/constants/ApiConstants";
 import TemplatesListLoader from "pages/Templates/loader";
-import { fetchFeatureFlagsInit } from "actions/userActions";
+import {
+  fetchFeatureFlagsInit,
+  fetchProductAlertInit,
+} from "actions/userActions";
 import { getCurrentTenant } from "@appsmith/actions/tenantActions";
-import { getDefaultAdminSettingsPath } from "@appsmith/utils/adminSettingsHelpers";
 import { getCurrentUser as getCurrentUserSelector } from "selectors/usersSelectors";
 import {
   getTenantPermissions,
@@ -63,6 +69,11 @@ import useBrandingTheme from "utils/hooks/useBrandingTheme";
 import RouteChangeListener from "RouteChangeListener";
 import { initCurrentPage } from "../actions/initActions";
 import Walkthrough from "components/featureWalkthrough";
+import ProductAlertBanner from "components/editorComponents/ProductAlertBanner";
+import WidgetBuilder from "pages/WidgetBuilder";
+import { getAdminSettingsPath } from "@appsmith/utils/BusinessFeatures/adminSettingsHelpers";
+import { useFeatureFlag } from "utils/hooks/useFeatureFlag";
+import { FEATURE_FLAG } from "@appsmith/entities/FeatureFlag";
 
 export const SentryRoute = Sentry.withSentryRouting(Route);
 
@@ -71,6 +82,10 @@ export const loadingIndicator = <PageLoadingBar />;
 export function Routes() {
   const user = useSelector(getCurrentUserSelector);
   const tenantPermissions = useSelector(getTenantPermissions);
+  const isFeatureEnabled = useFeatureFlag(FEATURE_FLAG.license_gac_enabled);
+  const isCustomWidgetsEnabled = useFeatureFlag(
+    FEATURE_FLAG.release_custom_widgets_enabled,
+  );
 
   return (
     <Switch>
@@ -88,6 +103,9 @@ export function Routes() {
       <SentryRoute component={SignupSuccess} exact path={SIGNUP_SUCCESS_URL} />
       <SentryRoute component={UserProfile} path={PROFILE} />
       <SentryRoute component={Setup} exact path={SETUP} />
+      {isCustomWidgetsEnabled && (
+        <SentryRoute component={WidgetBuilder} exact path={WIDGET_BUILDER} />
+      )}
       <SentryRoute component={TemplatesListLoader} path={TEMPLATES_PATH} />
       <Redirect
         exact
@@ -95,10 +113,11 @@ export function Routes() {
         to={
           !user
             ? ADMIN_SETTINGS_PATH
-            : getDefaultAdminSettingsPath({
-                isSuperUser: user?.isSuperUser || false,
+            : getAdminSettingsPath(
+                isFeatureEnabled,
+                user?.isSuperUser || false,
                 tenantPermissions,
-              })
+              )
         }
       />
       <SentryRoute
@@ -133,25 +152,37 @@ function AppRouter(props: {
   getFeatureFlags: () => void;
   getCurrentTenant: () => void;
   initCurrentPage: () => void;
+  fetchProductAlert: () => void;
   safeCrashCode?: ERROR_CODES;
 }) {
-  const { getCurrentTenant, getCurrentUser, getFeatureFlags, initCurrentPage } =
-    props;
+  const {
+    fetchProductAlert,
+    getCurrentTenant,
+    getCurrentUser,
+    getFeatureFlags,
+    initCurrentPage,
+  } = props;
   const tenantIsLoading = useSelector(isTenantLoading);
   const currentUserIsLoading = useSelector(getCurrentUserLoading);
+  const featuresIsLoading = useSelector(getFeatureFlagsFetching);
 
   useEffect(() => {
     getCurrentUser();
     getFeatureFlags();
     getCurrentTenant();
     initCurrentPage();
+    fetchProductAlert();
   }, []);
 
   useBrandingTheme();
 
   // hide the top loader once the tenant is loaded
   useEffect(() => {
-    if (tenantIsLoading === false && currentUserIsLoading === false) {
+    if (
+      tenantIsLoading === false &&
+      currentUserIsLoading === false &&
+      featuresIsLoading === false
+    ) {
       const loader = document.getElementById("loader") as HTMLDivElement;
 
       if (loader) {
@@ -162,9 +193,9 @@ function AppRouter(props: {
         });
       }
     }
-  }, [tenantIsLoading, currentUserIsLoading]);
+  }, [tenantIsLoading, currentUserIsLoading, featuresIsLoading]);
 
-  if (tenantIsLoading || currentUserIsLoading) return null;
+  if (tenantIsLoading || currentUserIsLoading || featuresIsLoading) return null;
 
   return (
     <Router history={history}>
@@ -176,26 +207,30 @@ function AppRouter(props: {
             <ErrorPage code={props.safeCrashCode} />
           </>
         ) : (
-          <Walkthrough>
-            <AppHeader />
-            <Routes />
-          </Walkthrough>
+          <>
+            <Walkthrough>
+              <AppHeader />
+              <Routes />
+            </Walkthrough>
+            <ProductAlertBanner />
+          </>
         )}
       </Suspense>
     </Router>
   );
 }
 
-const mapStateToProps = (state: AppState) => ({
+export const mapStateToProps = (state: AppState) => ({
   safeCrash: getSafeCrash(state),
   safeCrashCode: getSafeCrashCode(state),
 });
 
-const mapDispatchToProps = (dispatch: any) => ({
+export const mapDispatchToProps = (dispatch: any) => ({
   getCurrentUser: () => dispatch(getCurrentUser()),
   getFeatureFlags: () => dispatch(fetchFeatureFlagsInit()),
   getCurrentTenant: () => dispatch(getCurrentTenant(false)),
   initCurrentPage: () => dispatch(initCurrentPage()),
+  fetchProductAlert: () => dispatch(fetchProductAlertInit()),
 });
 
 export default connect(mapStateToProps, mapDispatchToProps)(AppRouter);

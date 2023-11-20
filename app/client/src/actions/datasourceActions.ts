@@ -7,14 +7,13 @@ import type { CreateDatasourceConfig } from "api/DatasourcesApi";
 import type {
   AuthenticationStatus,
   Datasource,
+  DatasourceStructureContext,
   FilePickerActionStatus,
   MockDatasource,
 } from "entities/Datasource";
 import type { PluginType } from "entities/Action";
-import type { executeDatasourceQueryRequest } from "api/DatasourcesApi";
 import type { ResponseMeta } from "api/ApiResponses";
 import { TEMP_DATASOURCE_ID } from "constants/Datasource";
-import type { DatasourceStructureContext } from "pages/Editor/Explorer/Datasources/DatasourceStructureContainer";
 
 export const createDatasourceFromForm = (
   payload: CreateDatasourceConfig & Datasource,
@@ -40,35 +39,40 @@ export const createTempDatasourceFromForm = (
 
 export const updateDatasource = (
   payload: Datasource,
+  currEditingEnvId: string,
   onSuccess?: ReduxAction<unknown>,
   onError?: ReduxAction<unknown>,
   isInsideReconnectModal?: boolean,
 ): ReduxActionWithCallbacks<
-  Datasource & { isInsideReconnectModal: boolean },
+  Datasource & { isInsideReconnectModal: boolean; currEditingEnvId?: string },
   unknown,
   unknown
 > => {
   return {
     type: ReduxActionTypes.UPDATE_DATASOURCE_INIT,
-    payload: { ...payload, isInsideReconnectModal: !!isInsideReconnectModal },
+    payload: {
+      ...payload,
+      isInsideReconnectModal: !!isInsideReconnectModal,
+      currEditingEnvId,
+    },
     onSuccess,
     onError,
   };
 };
 
-export type UpdateDatasourceSuccessAction = {
+export interface UpdateDatasourceSuccessAction {
   type: string;
   payload: Datasource;
   redirect: boolean;
   queryParams?: Record<string, string>;
-};
+}
 
-export type CreateDatasourceSuccessAction = {
+export interface CreateDatasourceSuccessAction {
   type: string;
   payload: Datasource;
   isDBCreated: boolean;
   redirect: boolean;
-};
+}
 
 export const updateDatasourceSuccess = (
   payload: Datasource,
@@ -234,9 +238,21 @@ export const deleteDatasource = (
   };
 };
 
-export const setDatasourceViewMode = (payload: boolean) => {
+// sets viewMode flag along with clearing the datasource banner message
+export const setDatasourceViewMode = (payload: {
+  datasourceId: string;
+  viewMode: boolean;
+}) => {
   return {
     type: ReduxActionTypes.SET_DATASOURCE_EDITOR_MODE,
+    payload,
+  };
+};
+
+// sets viewMode flag
+export const setDatasourceViewModeFlag = (payload: boolean) => {
+  return {
+    type: ReduxActionTypes.SET_DATASOURCE_EDITOR_MODE_FLAG,
     payload,
   };
 };
@@ -320,20 +336,27 @@ export const getOAuthAccessToken = (datasourceId: string) => {
   };
 };
 
-export type executeDatasourceQuerySuccessPayload<T> = {
+export interface executeDatasourceQuerySuccessPayload<T> {
   responseMeta: ResponseMeta;
   data: {
     body: T;
-    trigger: T;
+    trigger?: T;
     headers: Record<string, string[]>;
     statusCode: string;
     isExecutionSuccess: boolean;
   };
-};
+}
 type errorPayload = string;
 
+export interface executeDatasourceReduxActionPayload {
+  datasourceId: string;
+  template?: Record<string, any>;
+  data?: Record<string, any>;
+  isGeneratePage: boolean;
+}
+
 export type executeDatasourceQueryReduxAction<T> = ReduxActionWithCallbacks<
-  executeDatasourceQueryRequest,
+  executeDatasourceReduxActionPayload,
   executeDatasourceQuerySuccessPayload<T>,
   errorPayload
 >;
@@ -347,7 +370,7 @@ export const executeDatasourceQuery = ({
   onSuccessCallback?: (
     payload: executeDatasourceQuerySuccessPayload<any>,
   ) => void;
-  payload: executeDatasourceQueryRequest;
+  payload: executeDatasourceReduxActionPayload;
 }): executeDatasourceQueryReduxAction<any> => {
   return {
     type: ReduxActionTypes.EXECUTE_DATASOURCE_QUERY_INIT,
@@ -468,6 +491,10 @@ export const datasourceDiscardAction = (pluginId: string) => {
     },
   };
 };
+
+export const softRefreshDatasourceStructure = () => ({
+  type: ReduxActionTypes.SOFT_REFRESH_DATASOURCE_STRUCTURE,
+});
 
 export default {
   fetchDatasources,

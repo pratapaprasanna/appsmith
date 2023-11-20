@@ -39,7 +39,10 @@ describe("File picker widget v2", () => {
       ".t--property-control-text",
       `{{FilePicker1.files[0].name}}`,
     );
-    cy.createAndFillApi(_.tedTestConfig.mockApiUrl, "");
+    cy.createAndFillApi(
+      _.dataManager.dsValues[_.dataManager.defaultEnviorment].mockApiUrl,
+      "",
+    );
     cy.updateCodeInput(
       "[class*='t--actionConfiguration']",
       "{{FilePicker1.files}}",

@@ -5,7 +5,7 @@ import {
   draggableWidgets,
   entityExplorer,
   entityItems,
-  tedTestConfig,
+  dataManager,
   jsEditor,
   locators,
 } from "../../../../support/Objects/ObjectsCore";
@@ -130,22 +130,22 @@ describe("Autocomplete tests", () => {
       // eval function verification
       {
         type: "eval",
-        expected: "eval()",
+        expected: "eval",
         haveOrNotHave: false,
       },
       {
         type: "Blob",
-        expected: "Blob()",
+        expected: "Blob",
         haveOrNotHave: true,
       },
       {
         type: "FormData",
-        expected: "FormData()",
+        expected: "FormData",
         haveOrNotHave: true,
       },
       {
         type: "FileReader",
-        expected: "FileReader()",
+        expected: "FileReader",
         haveOrNotHave: true,
       },
     ];
@@ -167,13 +167,15 @@ describe("Autocomplete tests", () => {
     agHelper.GetNClick(jsEditor._lineinJsEditor(5));
     agHelper.TypeText(locators._codeMirrorTextArea, "this.");
 
-    ["myFun2()", "myVar1", "myVar2"].forEach((element, index) => {
+    ["myFun2", "myVar1", "myVar2"].forEach((element, index) => {
       agHelper.AssertContains(element);
     });
   });
 
   it("5. Api data with array of object autocompletion test", () => {
-    apiPage.CreateAndFillApi(tedTestConfig.mockApiUrl);
+    apiPage.CreateAndFillApi(
+      dataManager.dsValues[dataManager.defaultEnviorment].mockApiUrl,
+    );
     agHelper.Sleep(2000);
     apiPage.RunAPI();
     // Using same js object
@@ -283,8 +285,9 @@ describe("Autocomplete tests", () => {
         cy.get(locators._codeMirrorTextArea)
           .eq(0)
           .focus()
+          .wait(200)
           .type(
-            "{downArrow}{downArrow}{leftArrow}{leftArrow}{leftArrow}{leftArrow}",
+            "{downArrow}{downArrow}{leftArrow}{leftArrow}{leftArrow}{leftArrow}{leftArrow}",
           )
           .type(".");
 

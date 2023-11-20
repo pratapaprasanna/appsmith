@@ -1,18 +1,22 @@
 import {
   agHelper,
-  locators,
-  entityExplorer,
-  propPane,
-  deployMode,
   appSettings,
   autoLayout,
+  deployMode,
   draggableWidgets,
+  entityExplorer,
+  locators,
+  propPane,
 } from "../../../../support/Objects/ObjectsCore";
+import EditorNavigation, {
+  SidebarButton,
+} from "../../../../support/Pages/EditorNavigation";
+
 let currentUrl: string;
 
 describe("Page orientation and navigation related usecases ", function () {
   it("1. Change 'Orientation' to 'Side', sidebar should appear", () => {
-    agHelper.GetNClick(appSettings.locators._appSettings);
+    EditorNavigation.ViaSidebar(SidebarButton.Settings);
     agHelper.GetNClick(appSettings.locators._navigationSettingsTab);
     agHelper.GetNClick(
       appSettings.locators._navigationSettings._orientationOptions._side,
@@ -33,21 +37,13 @@ describe("Page orientation and navigation related usecases ", function () {
       entityExplorer.AddNewPage();
     }
     entityExplorer.DragDropWidgetNVerify(draggableWidgets.BUTTON);
-    //propPane.navigateToPage("Page1", "onClick");
     propPane.NavigateToPage("Page1", "onClick");
-    //cy.navigateOnClick("Page1", "onClick");
     deployMode.DeployApp();
     agHelper.Sleep();
     agHelper.GetNClickByContains("button", "Submit");
-    agHelper
-      .GetElement(appSettings.locators._navigationMenuItem)
-      .contains("Page1")
-      .parent()
-      .parent()
-      .parent()
-      .parent()
-      .parent()
-      .should("have.class", "is-active");
+    agHelper.AssertElementVisibility(
+      appSettings.locators._getActivePage("Page1"),
+    );
     deployMode.NavigateBacktoEditor();
   });
 

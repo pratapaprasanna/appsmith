@@ -10,7 +10,7 @@ import {
   apiPage,
   draggableWidgets,
   fakerHelper,
-  tedTestConfig,
+  dataManager,
 } from "../../../../support/Objects/ObjectsCore";
 
 const widgetsToTest = {
@@ -80,7 +80,10 @@ const widgetsToTest = {
 };
 
 function configureApi() {
-  apiPage.CreateAndFillApi(tedTestConfig.mockApiUrl, "FirstAPI");
+  apiPage.CreateAndFillApi(
+    dataManager.dsValues[dataManager.defaultEnviorment].mockApiUrl,
+    "FirstAPI",
+  );
   apiPage.EnterHeader("value", "{{this.params.value}}");
 }
 

@@ -12,42 +12,42 @@ import {
 let dsName: any, newCallsign: any;
 
 describe("Validate Postgres Generate CRUD with JSON Form", () => {
-  it("1. Create DS for generate CRUD template test", () => {
+  before("Create DS for generate CRUD template test", () => {
     dataSources.CreateDataSource("Postgres");
     cy.get("@dsName").then(($dsName) => {
       dsName = $dsName;
     });
   });
 
-  it("2. Create new CRUD Table 'Vessels' and populate & refresh Entity Explorer to find the new table", () => {
+  it("1. Create new CRUD Table 'Vessels' and populate & refresh Entity Explorer to find the new table", () => {
     const tableCreateQuery = `CREATE TABLE Vessels(
-      SHIP_ID                  INTEGER  NOT NULL PRIMARY KEY
-     ,CALLSIGN                 VARCHAR(7)
-     ,SHIPNAME                 VARCHAR(30) NOT NULL
-     ,COUNTRY                  VARCHAR(16) NOT NULL
-     ,NEXT_PORT_NAME           VARCHAR(20)
-     ,DESTINATION              VARCHAR(29)
-     ,VESSEL_TYPE              VARCHAR(17) NOT NULL
-     ,TIMEZONE                 NUMERIC(4,1)
-     ,STATUS_NAME              VARCHAR(26) NOT NULL
-     ,YEAR_BUILT               INTEGER
-     ,AREA_CODE                VARCHAR(33) NOT NULL
-     ,SPEED                    NUMERIC(8,4)
-     ,ETA_UPDATED              VARCHAR(19)
-     ,DISTANCE_TO_GO           INTEGER  NOT NULL
-     ,CURRENT_PORT             VARCHAR(20)
-   );
-   INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (371681,'ZCEF6','QUEEN MARY 2','Bermuda','STAVANGER','STAVANGER,NORWAY','Passenger',2,'Moored',2003,'NORDIC - Norwegian Coast',0.0,NULL,0,'STAVANGER');
-   INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (5630138,'H3RC','EVER GIVEN','Panama','KAOHSIUNG','KAOHSIUNG','Cargo',8,'Underway using Engine',2018,'SCHINA - South China',20.5,'2022-05-27 11:10:00',609,NULL);
-   INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (371584,'ZCDX4','ECLIPSE','Bermuda',NULL,'CRUISING','Pleasure Craft',3,'At Anchor',2010,'EMED - East Mediterranean',0.1,NULL,0,NULL);
-   INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (371668,'ZCEF2','QUEEN ELIZABETH','Bermuda','MANZANILLO','MANZANILLO','Passenger',-7,'Underway using Engine',2010,'WCCA - West Coast Central America',15.1,'2022-05-27 11:29:00',9,NULL);
-   INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (400773,'WDH2111','TIME BANDIT','USA',NULL,'FISHGROUNDS','Fishing',-8,'Underway using Engine',1991,'ALASKA - Alaska',8.0,NULL,0,'HOMER');
-   INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (372813,'C6XS7','OASIS OF THE SEAS','Bahamas','BAYONNE','BAYONNE','Passenger',-5,'Underway using Engine',2009,'CARIBS - Caribbean Sea',19.0,'2022-05-27 04:52:00',3872,NULL);
-   INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (435572,'WDC6082','WIZARD','USA','SEATTLE','SEATTLE','Fishing',-7,'Stopped',1945,'USWC - US West Coast',0.0,NULL,0,'SEATTLE');
-   INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (442329,'WDE5199','NORTHWESTERN','USA','SHILSHOLE','SHILSHOLE','Fishing',-7,'Moored',1977,'USWC - US West Coast',0.0,NULL,0,'SEATTLE');
-   INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (429068,'WYR4481','PAUL R TREGURTHA','USA','ST CLAIR','ST CLAIR','Cargo',-4,'Moored',1981,'GLAKES - Great Lakes',0.0,NULL,0,'ST CLAIR');
-   INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (159196,'OYGR2','EMMA MAERSK','Denmark','SHANGHAI','CNNBO>CNYSN','Cargo',8,'Underway using Engine',2006,'CCHINA - Central China',8.2,'2022-05-27 10:55:00',143,NULL);
-   `;
+        SHIP_ID                  INTEGER  NOT NULL PRIMARY KEY
+       ,CALLSIGN                 VARCHAR(7)
+       ,SHIPNAME                 VARCHAR(30) NOT NULL
+       ,COUNTRY                  VARCHAR(16) NOT NULL
+       ,NEXT_PORT_NAME           VARCHAR(20)
+       ,DESTINATION              VARCHAR(29)
+       ,VESSEL_TYPE              VARCHAR(17) NOT NULL
+       ,TIMEZONE                 NUMERIC(4,1)
+       ,STATUS_NAME              VARCHAR(26) NOT NULL
+       ,YEAR_BUILT               INTEGER
+       ,AREA_CODE                VARCHAR(33) NOT NULL
+       ,SPEED                    NUMERIC(8,4)
+       ,ETA_UPDATED              VARCHAR(19)
+       ,DISTANCE_TO_GO           INTEGER  NOT NULL
+       ,CURRENT_PORT             VARCHAR(20)
+     );
+     INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (371681,'ZCEF6','QUEEN MARY 2','Bermuda','STAVANGER','STAVANGER,NORWAY','Passenger',2,'Moored',2003,'NORDIC - Norwegian Coast',0.0,NULL,0,'STAVANGER');
+     INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (5630138,'H3RC','EVER GIVEN','Panama','KAOHSIUNG','KAOHSIUNG','Cargo',8,'Underway using Engine',2018,'SCHINA - South China',20.5,'2022-05-27 11:10:00',609,NULL);
+     INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (371584,'ZCDX4','ECLIPSE','Bermuda',NULL,'CRUISING','Pleasure Craft',3,'At Anchor',2010,'EMED - East Mediterranean',0.1,NULL,0,NULL);
+     INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (371668,'ZCEF2','QUEEN ELIZABETH','Bermuda','MANZANILLO','MANZANILLO','Passenger',-7,'Underway using Engine',2010,'WCCA - West Coast Central America',15.1,'2022-05-27 11:29:00',9,NULL);
+     INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (400773,'WDH2111','TIME BANDIT','USA',NULL,'FISHGROUNDS','Fishing',-8,'Underway using Engine',1991,'ALASKA - Alaska',8.0,NULL,0,'HOMER');
+     INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (372813,'C6XS7','OASIS OF THE SEAS','Bahamas','BAYONNE','BAYONNE','Passenger',-5,'Underway using Engine',2009,'CARIBS - Caribbean Sea',19.0,'2022-05-27 04:52:00',3872,NULL);
+     INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (435572,'WDC6082','WIZARD','USA','SEATTLE','SEATTLE','Fishing',-7,'Stopped',1945,'USWC - US West Coast',0.0,NULL,0,'SEATTLE');
+     INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (442329,'WDE5199','NORTHWESTERN','USA','SHILSHOLE','SHILSHOLE','Fishing',-7,'Moored',1977,'USWC - US West Coast',0.0,NULL,0,'SEATTLE');
+     INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (429068,'WYR4481','PAUL R TREGURTHA','USA','ST CLAIR','ST CLAIR','Cargo',-4,'Moored',1981,'GLAKES - Great Lakes',0.0,NULL,0,'ST CLAIR');
+     INSERT INTO Vessels(SHIP_ID,CALLSIGN,SHIPNAME,COUNTRY,NEXT_PORT_NAME,DESTINATION,VESSEL_TYPE,TIMEZONE,STATUS_NAME,YEAR_BUILT,AREA_CODE,SPEED,ETA_UPDATED,DISTANCE_TO_GO,CURRENT_PORT) VALUES (159196,'OYGR2','EMMA MAERSK','Denmark','SHANGHAI','CNNBO>CNYSN','Cargo',8,'Underway using Engine',2006,'CCHINA - Central China',8.2,'2022-05-27 10:55:00',143,NULL);
+     `;
 
     dataSources.NavigateFromActiveDS(dsName, true);
 
@@ -57,24 +57,14 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     //agHelper.VerifyEvaluatedValue(tableCreateQuery); //failing sometimes!
 
     dataSources.RunQueryNVerifyResponseViews();
-    agHelper.ActionContextMenuWithInPane({
-      action: "Delete",
-      entityType: entityItems.Query,
-    });
-
-    entityExplorer.ExpandCollapseEntity("Datasources");
-    entityExplorer.ExpandCollapseEntity(dsName);
-    entityExplorer.ActionContextMenuByEntityName({
-      entityNameinLeftSidebar: dsName,
-      action: "Refresh",
-    });
-    agHelper.AssertElementVisible(
-      entityExplorer._entityNameInExplorer("public.vessels"),
-    );
   });
 
-  it("3. Validate Select record from Postgress datasource & verify query response", () => {
-    entityExplorer.ActionTemplateMenuByEntityName("public.vessels", "SELECT");
+  it("2. Validate Select record from Postgress datasource & verify query response", () => {
+    dataSources.createQueryWithDatasourceSchemaTemplate(
+      dsName,
+      "public.vessels",
+      "Select",
+    );
     dataSources.RunQueryNVerifyResponseViews(10);
     dataSources.AssertQueryTableResponse(0, "371681");
     dataSources.AssertQueryTableResponse(6, "Passenger");
@@ -82,9 +72,14 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
       action: "Delete",
       entityType: entityItems.Query,
     });
+    entityExplorer.SelectEntityByName("CreateVessels");
+    agHelper.ActionContextMenuWithInPane({
+      action: "Delete",
+      entityType: entityItems.Query,
+    });
   });
 
-  it("4. Verify Generate CRUD for the new table & Verify Deploy mode for table - Vessels", () => {
+  it("3. Verify Generate CRUD for the new table & Verify Deploy mode for table - Vessels", () => {
     dataSources.NavigateFromActiveDS(dsName, false);
     agHelper.GetNClick(dataSources._selectTableDropdown, 0, true);
     agHelper.GetNClickByContains(dataSources._dropdownOption, "vessels");
@@ -93,7 +88,7 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     assertHelper.AssertNetworkStatus("@replaceLayoutWithCRUDPage", 201);
     assertHelper.AssertNetworkStatus("@getActions", 200);
     assertHelper.AssertNetworkStatus("@postExecute", 200);
-    agHelper.GetNClick(dataSources._visibleTextSpan("Got it"));
+    agHelper.ClickButton("Got it");
     assertHelper.AssertNetworkStatus("@updateLayout", 200);
     deployMode.DeployApp(locators._widgetInDeployed("tablewidget"));
 
@@ -131,7 +126,7 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     });
 
     //Validating loaded JSON form
-    cy.xpath(locators._spanButton("Update")).then((selector) => {
+    cy.xpath(locators._buttonByText("Update")).then((selector) => {
       cy.wrap(selector)
         .invoke("attr", "class")
         .then((classes) => {
@@ -149,7 +144,7 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     // assertHelper.AssertNetworkStatus("@deletePage" , 200);
   });
 
-  it("5. Update the UpdateQuery to update all columns from UI", () => {
+  it("4. Update the UpdateQuery to update all columns from UI", () => {
     const updateQuery = `UPDATE public."vessels" SET
 		"callsign" = UPPER('{{update_form.fieldState.callsign.isVisible ? update_form.formData.callsign : update_form.sourceData.callsign}}'),
 		"shipname" = '{{update_form.fieldState.shipname.isVisible ? update_form.formData.shipname : update_form.sourceData.shipname}}',
@@ -176,14 +171,14 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     UpdatingVesselsJSONPropertyFileds();
   });
 
-  it("6. Verify Update data from Deploy page - on Vessels - existing record", () => {
+  it("5. Verify Update data from Deploy page - on Vessels - existing record", () => {
     deployMode.DeployApp();
     agHelper.Sleep(2000);
     table.SelectTableRow(0, 0, false); //to make JSON form hidden
     agHelper.Sleep(2000); //Sleep time for tab to disappear!
     agHelper.AssertElementAbsence(locators._jsonFormWidget);
     table.SelectTableRow(5);
-    agHelper.AssertElementVisible(locators._jsonFormWidget);
+    agHelper.AssertElementVisibility(locators._jsonFormWidget);
     dataSources.AssertJSONFormHeader(5, 0, "ship_id");
     generateCallsignInfo(5);
     cy.get("@Callsign").then(($callSign) => {
@@ -194,10 +189,10 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
 
     //Checking Required field validations
     deployMode.ClearJSONFieldValue("Shipname");
-    agHelper.AssertElementVisible(
+    agHelper.AssertElementVisibility(
       locators._visibleTextDiv("This field is required"),
     );
-    cy.xpath(locators._spanButton("Update") + "/parent::div").should(
+    cy.xpath(locators._buttonByText("Update") + "/parent::div").should(
       "have.attr",
       "disabled",
     );
@@ -215,7 +210,7 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
 
     deployMode.ClearJSONFieldValue("Timezone");
     deployMode.EnterJSONInputValue("Timezone", "-15");
-    agHelper.AssertElementVisible(
+    agHelper.AssertElementVisibility(
       locators._visibleTextDiv("Not a valid timezone!"),
     );
     deployMode.ClearJSONFieldValue("Timezone");
@@ -246,7 +241,7 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     deployMode.EnterJSONInputValue("Current Port", "BAYONNE");
   });
 
-  it("7. Verify Update data from Deploy page - on Vessels - existing record", () => {
+  it("6. Verify Update data from Deploy page - on Vessels - existing record", () => {
     UpdateNVerify(5, 2, "DISNEY DREAM");
     table.ReadTableRowColumnData(5, 3, "v1", 200).then(($cellData) => {
       expect($cellData).to.eq("France");
@@ -286,7 +281,7 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     });
   });
 
-  it("8. Verify Delete field data from Deploy page - on Vessels - existing record", () => {
+  it("7. Verify Delete field data from Deploy page - on Vessels - existing record", () => {
     table.SelectTableRow(8);
     dataSources.AssertJSONFormHeader(8, 0, "ship_id");
 
@@ -332,12 +327,12 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     UpdateNVerify(8, 3, "");
   });
 
-  it("9. Verify Delete row from Deploy page - on Vessels - existing record", () => {
+  it("8. Verify Delete row from Deploy page - on Vessels - existing record", () => {
     table.SelectTableRow(1);
     dataSources.AssertJSONFormHeader(1, 0, "ship_id");
     agHelper.ClickButton("Delete", 1);
-    agHelper.AssertElementVisible(locators._modal);
-    agHelper.AssertElementVisible(
+    agHelper.AssertElementVisibility(locators._modal);
+    agHelper.AssertElementVisibility(
       dataSources._visibleTextSpan(
         "Are you sure you want to delete this item?",
       ),
@@ -345,8 +340,8 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     agHelper.ClickButton("Cancel");
     dataSources.AssertJSONFormHeader(1, 0, "ship_id");
     agHelper.ClickButton("Delete", 1);
-    agHelper.AssertElementVisible(locators._modal);
-    agHelper.AssertElementVisible(
+    agHelper.AssertElementVisibility(locators._modal);
+    agHelper.AssertElementVisibility(
       dataSources._visibleTextSpan(
         "Are you sure you want to delete this item?",
       ),
@@ -359,7 +354,7 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     dataSources.AssertJSONFormHeader(0, 0, "ship_id");
   });
 
-  it("10. Verify Refresh table from Deploy page - on Vessels & verify all updates persists", () => {
+  it("9. Verify Refresh table from Deploy page - on Vessels & verify all updates persists", () => {
     agHelper.GetNClick(dataSources._refreshIcon);
 
     //Store Address deletion remains
@@ -386,7 +381,7 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     table.WaitUntilTableLoad();
   });
 
-  it("11. Update the InsertQuery to insert all columns from UI", () => {
+  it("10. Update the InsertQuery to insert all columns from UI", () => {
     deployMode.NavigateBacktoEditor();
     table.WaitUntilTableLoad();
     const insertQuery = `INSERT INTO public."vessels" (
@@ -431,7 +426,7 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     entityExplorer.ExpandCollapseEntity("Queries/JS", false);
   });
 
-  it("12. Update JSON fields with placeholds for Addition - on Vessels", () => {
+  it("11. Update JSON fields with placeholds for Addition - on Vessels", () => {
     entityExplorer.ExpandCollapseEntity("Widgets");
     entityExplorer.ExpandCollapseEntity("Insert_Modal");
     entityExplorer.SelectEntityByName("insert_form");
@@ -444,23 +439,23 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     UpdatingVesselsJSONPropertyFileds();
   });
 
-  it("13. Verify Add/Insert from Deploy page - on Vessels - new record - few validations", () => {
+  it("12. Verify Add/Insert from Deploy page - on Vessels - new record - few validations", () => {
     deployMode.DeployApp();
     table.AssertSelectedRow(0);
 
     agHelper.GetNClick(dataSources._addIcon);
     agHelper.Sleep();
-    //agHelper.AssertElementVisible(locators._jsonFormWidget, 1); //Insert Modal
-    agHelper.AssertElementVisible(locators._visibleTextDiv("Insert Row"));
+    //agHelper.AssertElementVisibility(locators._jsonFormWidget, 1); //Insert Modal
+    agHelper.AssertElementVisibility(locators._visibleTextDiv("Insert Row"));
 
     //Checking Required field validations
     deployMode.ClearJSONFieldValue("Shipname", 0);
-    cy.xpath(locators._spanButton("Submit") + "/parent::div").should(
+    cy.xpath(locators._buttonByText("Submit") + "/parent::div").should(
       "have.attr",
       "disabled",
     );
     deployMode.EnterJSONInputValue("Shipname", "MALTESE FALCON", 0);
-    cy.xpath(locators._spanButton("Submit") + "/parent::div").should(
+    cy.xpath(locators._buttonByText("Submit") + "/parent::div").should(
       "not.have.attr",
       "disabled",
     );
@@ -474,7 +469,7 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     deployMode.EnterJSONInputValue("Ship Id", "159196");
   });
 
-  it("14. Verify Add/Insert from Deploy page - on Vessels - new record", () => {
+  it("13. Verify Add/Insert from Deploy page - on Vessels - new record", () => {
     deployMode.ClearJSONFieldValue("Callsign", 0);
     deployMode.EnterJSONInputValue("Callsign", "9HUQ9", 0);
 
@@ -491,7 +486,7 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
 
     deployMode.ClearJSONFieldValue("Timezone", 0);
     deployMode.EnterJSONInputValue("Timezone", "-12", 0);
-    agHelper.AssertElementVisible(
+    agHelper.AssertElementVisibility(
       locators._visibleTextDiv("Not a valid timezone!"),
     );
     deployMode.ClearJSONFieldValue("Timezone", 0);
@@ -528,10 +523,10 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
       .should("eq", "password");
 
     deployMode.ClearJSONFieldValue("Shipname", 0);
-    agHelper.AssertElementVisible(
+    agHelper.AssertElementVisibility(
       locators._visibleTextDiv("This field is required"),
     );
-    cy.xpath(locators._spanButton("Submit") + "/parent::div").should(
+    cy.xpath(locators._buttonByText("Submit") + "/parent::div").should(
       "have.attr",
       "disabled",
     );
@@ -560,7 +555,7 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     //   .then(($len) => expect($len).to.eq(1));
   });
 
-  it("15. Verify Update fields/Delete from Deploy page - on Vessels - newly inserted record", () => {
+  it("14. Verify Update fields/Delete from Deploy page - on Vessels - newly inserted record", () => {
     table.SelectTableRow(0);
     agHelper.Sleep(2000); //since table taking time to display JSON form
 
@@ -585,8 +580,8 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
 
     dataSources.AssertJSONFormHeader(0, 0, "ship_id", "159180");
     agHelper.ClickButton("Delete", 0);
-    agHelper.AssertElementVisible(locators._modal);
-    agHelper.AssertElementVisible(
+    agHelper.AssertElementVisibility(locators._modal);
+    agHelper.AssertElementVisibility(
       dataSources._visibleTextSpan(
         "Are you sure you want to delete this item?",
       ),
@@ -601,7 +596,7 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     });
   });
 
-  it("16. Validate Deletion of the Newly Created Page - Vessels", () => {
+  it("15. Validate Deletion of the Newly Created Page - Vessels", () => {
     deployMode.NavigateBacktoEditor();
     table.WaitUntilTableLoad();
     //Delete the test data
@@ -612,7 +607,7 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     });
   });
 
-  it("17. Validate Drop of the Newly Created - Vessels - Table from Postgres datasource", () => {
+  it("16. Validate Drop of the Newly Created - Vessels - Table from Postgres datasource", () => {
     const deleteTblQuery = "DROP TABLE Vessels;";
     dataSources.NavigateFromActiveDS(dsName, true);
     agHelper.RenameWithInPane("DropVessels");
@@ -620,18 +615,10 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     agHelper.FocusElement(locators._codeMirrorTextArea);
 
     dataSources.RunQueryNVerifyResponseViews();
-    entityExplorer.ExpandCollapseEntity("Datasources");
-    entityExplorer.ExpandCollapseEntity(dsName);
-    entityExplorer.ActionContextMenuByEntityName({
-      entityNameinLeftSidebar: dsName,
-      action: "Refresh",
-    });
-    agHelper.AssertElementAbsence(
-      entityExplorer._entityNameInExplorer("public.vessels"),
-    );
+    dataSources.AssertTableInVirtuosoList(dsName, "public.vessels", false);
   });
 
-  it("18. Verify application does not break when user runs the query with wrong table name", function () {
+  it("17. Verify application does not break when user runs the query with wrong table name", function () {
     entityExplorer.SelectEntityByName("DropVessels", "Queries/JS");
     dataSources.RunQuery({ toValidateResponse: false });
     cy.wait("@postExecute").then(({ response }) => {
@@ -646,10 +633,10 @@ describe("Validate Postgres Generate CRUD with JSON Form", () => {
     });
   });
 
-  it("19. Verify Deletion of the datasource when Pages/Actions associated are not removed yet", () => {
+  it("18. Verify Deletion of the datasource when Pages/Actions associated are not removed yet", () => {
     deployMode.DeployApp();
     deployMode.NavigateBacktoEditor();
-    dataSources.DeleteDatasouceFromWinthinDS(dsName, 200);
+    dataSources.DeleteDatasourceFromWithinDS(dsName, 200);
   });
 
   function generateCallsignInfo(rowIndex: number) {

@@ -7,19 +7,18 @@ import { Colors } from "constants/Colors";
 import { useParams } from "react-router";
 
 import {
-  getActionsForCurrentPage,
+  getCurrentActions,
   getPluginImages,
-} from "selectors/entitiesSelector";
+} from "@appsmith/selectors/entitiesSelector";
 import styled from "styled-components";
 import type { AppState } from "@appsmith/reducers";
 import history from "utils/history";
 
 import RenderDatasourceInformation from "pages/Editor/DataSourceEditor/DatasourceSection";
 import { BaseButton } from "components/designSystems/appsmith/BaseButton";
-import { saasEditorDatasourceIdURL } from "RouteBuilder";
+import { saasEditorDatasourceIdURL } from "@appsmith/RouteBuilder";
 import { getAssetUrl } from "@appsmith/utils/airgapHelpers";
 import { Button } from "design-system";
-import { getCurrentEnvironment } from "@appsmith/utils/Environments";
 
 const Wrapper = styled.div`
   border: 2px solid #d6d6d6;
@@ -82,10 +81,10 @@ const ButtonsWrapper = styled.div`
   gap: 10px;
 `;
 
-type DatasourceCardProps = {
+interface DatasourceCardProps {
   datasource: Datasource;
   onCreate: (datasource: Datasource) => void;
-};
+}
 
 // TODO: This is largely a quick copy pasta and edit of QueryEditor/DatasourceCard.tsx
 // When we move Google Sheets over to regular oauth2 integrations, we will need to refactor this.
@@ -99,7 +98,7 @@ function DatasourceCard(props: DatasourceCardProps) {
   const datasourceFormConfigs = useSelector(
     (state: AppState) => state.entities.plugins.formConfigs,
   );
-  const queryActions = useSelector(getActionsForCurrentPage);
+  const queryActions = useSelector(getCurrentActions);
   const queriesWithThisDatasource = queryActions.filter(
     (action) =>
       isStoredDatasource(action.config.datasource) &&
@@ -157,8 +156,8 @@ function DatasourceCard(props: DatasourceCardProps) {
       {!isEmpty(currentFormConfig) ? (
         <RenderDatasourceInformation
           config={currentFormConfig[0]}
-          currentEnvironment={getCurrentEnvironment()}
           datasource={datasource}
+          showOnlyCurrentEnv
         />
       ) : undefined}
     </Wrapper>

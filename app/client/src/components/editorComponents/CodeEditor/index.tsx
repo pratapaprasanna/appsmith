@@ -27,14 +27,12 @@ import "codemirror/addon/hint/sql-hint";
 import { getDataTreeForAutocomplete } from "selectors/dataTreeSelectors";
 import EvaluatedValuePopup from "components/editorComponents/CodeEditor/EvaluatedValuePopup";
 import type { WrappedFieldInputProps } from "redux-form";
-import _, { debounce, isEqual } from "lodash";
+import _, { debounce, isEqual, isNumber } from "lodash";
 import scrollIntoView from "scroll-into-view-if-needed";
 
-import type {
-  DataTree,
-  EvaluationSubstitutionType,
-} from "entities/DataTree/dataTreeFactory";
-import { ENTITY_TYPE } from "entities/DataTree/dataTreeFactory";
+import { ENTITY_TYPE_VALUE } from "entities/DataTree/dataTreeFactory";
+import type { EvaluationSubstitutionType } from "@appsmith/entities/DataTree/types";
+import type { DataTree } from "entities/DataTree/dataTreeTypes";
 import { Skin } from "constants/DefaultTheme";
 import AnalyticsUtil from "utils/AnalyticsUtil";
 import "components/editorComponents/CodeEditor/sql/customMimes";
@@ -62,16 +60,15 @@ import {
   IconContainer,
   PEEK_STYLE_PERSIST_CLASS,
 } from "components/editorComponents/CodeEditor/styledComponents";
-import { bindingMarker } from "components/editorComponents/CodeEditor/MarkHelpers/bindingMarker";
 import {
   entityMarker,
   NAVIGATE_TO_ATTRIBUTE,
 } from "components/editorComponents/CodeEditor/MarkHelpers/entityMarker";
 import {
-  bindingHint,
+  bindingHintHelper,
   sqlHint,
 } from "components/editorComponents/CodeEditor/hintHelpers";
-import BindingPrompt from "./BindingPrompt";
+
 import { showBindingPrompt } from "./BindingPromptHelper";
 import { Button } from "design-system";
 import "codemirror/addon/fold/brace-fold";
@@ -92,7 +89,7 @@ import {
   removeEventFromHighlightedElement,
   removeNewLineCharsIfRequired,
 } from "./codeEditorUtils";
-import { commandsHelper } from "./commandsHelper";
+import { slashCommandHintHelper } from "./commandsHelper";
 import { getEntityNameAndPropertyPath } from "@appsmith/workers/Evaluation/evaluationUtils";
 import { getPluginIdToImageLocation } from "sagas/selectors";
 import type { ExpectedValueExample } from "utils/validation/common";
@@ -130,7 +127,7 @@ import { getCodeCommentKeyMap, handleCodeComment } from "./utils/codeComment";
 import type { EntityNavigationData } from "selectors/navigationSelectors";
 import { getEntitiesForNavigation } from "selectors/navigationSelectors";
 import history, { NavigationMethod } from "utils/history";
-import { CursorPositionOrigin } from "reducers/uiReducers/editorContextReducer";
+import { CursorPositionOrigin } from "@appsmith/reducers/uiReducers/editorContextReducer";
 import type { PeekOverlayStateProps } from "./PeekOverlayPopup/PeekOverlayPopup";
 import {
   PeekOverlayPopUp,
@@ -144,32 +141,39 @@ import {
 import { getAssetUrl } from "@appsmith/utils/airgapHelpers";
 import { selectFeatureFlags } from "@appsmith/selectors/featureFlagsSelectors";
 import { AIWindow } from "@appsmith/components/editorComponents/GPT";
+import { AskAIButton } from "@appsmith/components/editorComponents/GPT/AskAIButton";
 import classNames from "classnames";
-import {
-  APPSMITH_AI,
-  isAIEnabled,
-} from "@appsmith/components/editorComponents/GPT/trigger";
+import { isAIEnabled } from "@appsmith/components/editorComponents/GPT/trigger";
 import {
   getAllDatasourceTableKeys,
   selectInstalledLibraries,
-} from "selectors/entitiesSelector";
+} from "@appsmith/selectors/entitiesSelector";
 import { debug } from "loglevel";
 import { PeekOverlayExpressionIdentifier, SourceType } from "@shared/ast";
 import type { MultiplexingModeConfig } from "components/editorComponents/CodeEditor/modes";
 import { MULTIPLEXING_MODE_CONFIGS } from "components/editorComponents/CodeEditor/modes";
 import { getDeleteLineShortcut } from "./utils/deleteLine";
+import { CodeEditorSignPosting } from "@appsmith/components/editorComponents/CodeEditorSignPosting";
+import { getFocusablePropertyPaneField } from "selectors/propertyPaneSelectors";
+import resizeObserver from "utils/resizeObserver";
+import { EMPTY_BINDING } from "../ActionCreator/constants";
+import {
+  resetActiveEditorField,
+  setActiveEditorField,
+} from "actions/activeFieldActions";
+import CodeMirrorTernService from "utils/autocomplete/CodemirrorTernService";
 
 type ReduxStateProps = ReturnType<typeof mapStateToProps>;
 type ReduxDispatchProps = ReturnType<typeof mapDispatchToProps>;
 
-export type CodeEditorExpected = {
+export interface CodeEditorExpected {
   type: string;
   example: ExpectedValueExample;
   autocompleteDataType: AutocompleteDataType;
   openExampleTextByDefault?: boolean;
-};
+}
 
-export type EditorStyleProps = {
+export interface EditorStyleProps {
   placeholder?: string;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
@@ -193,7 +197,7 @@ export type EditorStyleProps = {
   popperPlacement?: Placement;
   popperZIndex?: Indices;
   blockCompletions?: FieldEntityInformation["blockCompletions"];
-};
+}
 /**
  *  line => Line to which the gutter is added
  *
@@ -201,18 +205,18 @@ export type EditorStyleProps = {
  *
  * isFocusedAction => function called when focused
  */
-export type GutterConfig = {
+export interface GutterConfig {
   line: number;
   element: HTMLElement;
   isFocusedAction: () => void;
-};
+}
 
-export type CodeEditorGutter = {
+export interface CodeEditorGutter {
   getGutterConfig:
     | ((editorValue: string, cursorLineNumber: number) => GutterConfig | null)
     | null;
   gutterId: string;
-};
+}
 
 export type EditorProps = EditorStyleProps &
   EditorConfig & {
@@ -234,9 +238,9 @@ export type EditorProps = EditorStyleProps &
     isRawView?: boolean;
     isJSObject?: boolean;
     jsObjectName?: string;
-    containerHeight?: number;
     // Custom gutter
     customGutter?: CodeEditorGutter;
+    positionCursorInsideBinding?: boolean;
 
     // On focus and blur event handler
     onEditorBlur?: () => void;
@@ -248,7 +252,7 @@ export type EditorProps = EditorStyleProps &
 
 interface Props extends ReduxStateProps, EditorProps, ReduxDispatchProps {}
 
-type State = {
+interface State {
   isFocused: boolean;
   isOpened: boolean;
   autoCompleteVisible: boolean;
@@ -263,7 +267,8 @@ type State = {
     | undefined;
   isDynamic: boolean;
   showAIWindow: boolean;
-};
+  ternToolTipActive: boolean;
+}
 
 const getEditorIdentifier = (props: EditorProps): string => {
   return props.dataTreePath || props.focusElementName || "";
@@ -271,9 +276,9 @@ const getEditorIdentifier = (props: EditorProps): string => {
 
 class CodeEditor extends Component<Props, State> {
   static defaultProps = {
-    marking: [bindingMarker, entityMarker],
-    hinting: [bindingHint, commandsHelper, sqlHint.hinter],
+    marking: [entityMarker],
     lineCommentString: "//",
+    hinting: [bindingHintHelper, slashCommandHintHelper, sqlHint.hinter],
   };
   // this is the higlighted element for any highlighted text in the codemirror
   highlightedUrlElement: HTMLElement | undefined;
@@ -301,8 +306,10 @@ class CodeEditor extends Component<Props, State> {
       ctrlPressed: false,
       peekOverlayProps: undefined,
       showAIWindow: false,
+      ternToolTipActive: false,
     };
     this.updatePropertyValue = this.updatePropertyValue.bind(this);
+    this.focusEditor = this.focusEditor.bind(this);
     this.peekOverlayExpressionIdentifier = new PeekOverlayExpressionIdentifier(
       props.isJSObject
         ? {
@@ -436,11 +443,10 @@ class CodeEditor extends Component<Props, State> {
         editor.on("keydown", this.handleAutocompleteKeydown);
         editor.on("focus", this.handleEditorFocus);
         editor.on("cursorActivity", this.handleCursorMovement);
+        editor.on("cursorActivity", this.debouncedArgHints);
         editor.on("blur", this.handleEditorBlur);
-        editor.on("postPick", this.handleSlashCommandSelection);
         editor.on("mousedown", this.handleClick);
         editor.on("scrollCursorIntoView", this.handleScrollCursorIntoView);
-        editor.on("trigger-ai", () => this.setState({ showAIWindow: true }));
         CodeMirror.on(
           editor.getWrapperElement(),
           "mousemove",
@@ -464,7 +470,7 @@ class CodeEditor extends Component<Props, State> {
           editor,
           // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
           this.props.hinting!, // ! since defaultProps are set
-          this.props.dynamicData,
+          this.props.entitiesForNavigation, // send navigation here
         );
 
         this.lintCode(editor);
@@ -484,15 +490,24 @@ class CodeEditor extends Component<Props, State> {
     }
     window.addEventListener("keydown", this.handleKeydown);
     window.addEventListener("keyup", this.handleKeyUp);
-  }
 
-  handleSlashCommandSelection = (...args: any) => {
-    const [command] = args;
-    if (command === APPSMITH_AI) {
-      this.setState({ showAIWindow: true });
+    if (this.codeEditorTarget.current) {
+      // refresh editor on resize which prevents issue #23796
+      resizeObserver.observe(this.codeEditorTarget.current, [
+        this.debounceEditorRefresh,
+      ]);
     }
-    this.handleAutocompleteVisibility(this.editor);
-  };
+    if (
+      this.props.positionCursorInsideBinding &&
+      this.props.input.value === EMPTY_BINDING
+    ) {
+      this.editor.focus();
+      this.editor.setCursor({
+        ch: 2,
+        line: 0,
+      });
+    }
+  }
 
   shouldComponentUpdate(nextProps: Props, nextState: State) {
     if (this.props.dynamicData !== nextProps.dynamicData) {
@@ -524,21 +539,34 @@ class CodeEditor extends Component<Props, State> {
     this.editor.refresh();
   }, 100);
 
+  debouncedArgHints = _.debounce(() => {
+    this.setState({
+      ternToolTipActive: CodeMirrorTernService.updateArgHints(this.editor),
+    });
+  }, 200);
+
   componentDidUpdate(prevProps: Props): void {
     const identifierHasChanged =
       getEditorIdentifier(this.props) !== getEditorIdentifier(prevProps);
-    if (
-      prevProps.containerHeight &&
-      this.props.containerHeight &&
-      prevProps.containerHeight < this.props.containerHeight
-    ) {
-      //Refresh editor when the container height is increased.
-      this.debounceEditorRefresh();
+
+    const entityInformation = this.getEntityInformation();
+    const isWidgetType =
+      entityInformation.entityType === ENTITY_TYPE_VALUE.WIDGET;
+
+    const hasFocusedValueChanged =
+      getEditorIdentifier(this.props) !== this.props.focusedProperty;
+
+    if (hasFocusedValueChanged && isWidgetType) {
+      if (this.state.showAIWindow) {
+        this.setState({ showAIWindow: false });
+      }
     }
+
     if (identifierHasChanged) {
       if (this.state.showAIWindow) {
         this.setState({ showAIWindow: false });
       }
+
       if (shouldFocusOnPropertyControl()) {
         setTimeout(() => {
           if (this.props.editorIsFocused) {
@@ -546,12 +574,26 @@ class CodeEditor extends Component<Props, State> {
           }
         }, 200);
       }
-    }
-    this.editor.operation(() => {
-      if (prevProps.lintErrors !== this.props.lintErrors) {
-        this.lintCode(this.editor);
+    } else if (this.props.editorLastCursorPosition) {
+      // This is for when we want to change cursor positions
+      // for e.g navigating to a line from the debugger
+      if (
+        !isEqual(
+          this.props.editorLastCursorPosition,
+          prevProps.editorLastCursorPosition,
+        ) &&
+        this.props.editorLastCursorPosition.origin ===
+          CursorPositionOrigin.Navigation
+      ) {
+        setTimeout(() => {
+          if (this.props.editorIsFocused) {
+            this.editor.focus();
+          }
+        }, 200);
       }
+    }
 
+    this.editor.operation(() => {
       const editorValue = this.editor.getValue();
       // Safe update of value of the editor when value updated outside the editor
       const inputValue = getInputValue(this.props.input.value);
@@ -566,7 +608,7 @@ class CodeEditor extends Component<Props, State> {
          * and we check if they are different because the input value has changed
          * and not because the editor value has changed
          * */
-        if (inputValue !== editorValue && inputValue !== previousInputValue) {
+        if (inputValue !== editorValue) {
           // If it is focused update it only if the identifier has changed
           // if not focused, can be updated
           if (this.state.isFocused) {
@@ -596,6 +638,9 @@ class CodeEditor extends Component<Props, State> {
           this.props.marking!, // ! since defaultProps are set
           this.props.entitiesForNavigation,
         );
+      }
+      if (prevProps.lintErrors !== this.props.lintErrors) {
+        this.lintCode(this.editor);
       }
       if (this.props.datasourceTableKeys !== prevProps.datasourceTableKeys) {
         sqlHint.setDatasourceTableKeys(this.props.datasourceTableKeys);
@@ -630,6 +675,9 @@ class CodeEditor extends Component<Props, State> {
       },
     });
 
+    if (this.state.ternToolTipActive) {
+      CodeMirrorTernService.closeArgHints();
+    }
     AnalyticsUtil.logEvent("PEEK_OVERLAY_OPENED", {
       property: expression,
     });
@@ -642,6 +690,11 @@ class CodeEditor extends Component<Props, State> {
       );
       this.setState({
         peekOverlayProps: undefined,
+      });
+    }
+    if (this.state.ternToolTipActive) {
+      this.setState({
+        ternToolTipActive: CodeMirrorTernService.updateArgHints(this.editor),
       });
     }
   };
@@ -809,6 +862,12 @@ class CodeEditor extends Component<Props, State> {
   };
 
   componentWillUnmount() {
+    if (this.codeEditorTarget.current) {
+      resizeObserver.unobserve(this.codeEditorTarget.current, [
+        this.debounceEditorRefresh,
+      ]);
+    }
+
     // if the highlighted element exists, remove the event listeners to prevent memory leaks
     if (this.highlightedUrlElement) {
       removeEventFromHighlightedElement(this.highlightedUrlElement, [
@@ -834,8 +893,8 @@ class CodeEditor extends Component<Props, State> {
     this.editor.off("keydown", this.handleAutocompleteKeydown);
     this.editor.off("focus", this.handleEditorFocus);
     this.editor.off("cursorActivity", this.handleCursorMovement);
+    this.editor.off("cursorActivity", this.debouncedArgHints);
     this.editor.off("blur", this.handleEditorBlur);
-    this.editor.off("postPick", this.handleSlashCommandSelection);
     CodeMirror.off(
       this.editor.getWrapperElement(),
       "mousemove",
@@ -843,6 +902,8 @@ class CodeEditor extends Component<Props, State> {
     );
     // @ts-expect-error: Types are not available
     this.editor.closeHint();
+
+    CodeMirrorTernService.closeArgHints();
   }
 
   private handleKeydown = (e: KeyboardEvent) => {
@@ -908,10 +969,10 @@ class CodeEditor extends Component<Props, State> {
   static startAutocomplete(
     editor: CodeMirror.Editor,
     hinting: Array<HintHelper>,
-    dynamicData: DataTree,
+    entitiesForNavigation: EntityNavigationData,
   ) {
     return hinting.map((helper) => {
-      return helper(editor, dynamicData);
+      return helper(editor, entitiesForNavigation);
     });
   }
 
@@ -949,7 +1010,7 @@ class CodeEditor extends Component<Props, State> {
               }
 
               if (navigationData.url) {
-                if (navigationData.type === ENTITY_TYPE.ACTION) {
+                if (navigationData.type === ENTITY_TYPE_VALUE.ACTION) {
                   AnalyticsUtil.logEvent("EDIT_ACTION_CLICK", {
                     actionId: navigationData?.id,
                     datasourceId: navigationData?.datasourceId,
@@ -1026,6 +1087,7 @@ class CodeEditor extends Component<Props, State> {
   };
 
   handleEditorFocus = (cm: CodeMirror.Editor) => {
+    this.props.setActiveField(this.props.dataTreePath || "");
     this.setState({ isFocused: true });
     const { sticky } = cm.getCursor();
     const isUserFocus = sticky !== null;
@@ -1081,6 +1143,7 @@ class CodeEditor extends Component<Props, State> {
         return;
       }
     }
+    this.props.resetActiveField();
     this.handleChange();
     this.setState({ isFocused: false });
     this.editor.setOption("matchBrackets", false);
@@ -1218,35 +1281,32 @@ class CodeEditor extends Component<Props, State> {
       expectedType: expected?.autocompleteDataType,
       example: expected?.example,
       mode: this.props.mode,
+      isTriggerPath: false,
     };
+    if (!dataTreePath) return entityInformation;
 
-    if (dataTreePath) {
-      const { entityName, propertyPath } =
-        getEntityNameAndPropertyPath(dataTreePath);
-      entityInformation.entityName = entityName;
-      const entity = configTree[entityName];
+    const { entityName, propertyPath } =
+      getEntityNameAndPropertyPath(dataTreePath);
+    entityInformation.entityName = entityName;
+    entityInformation.propertyPath = propertyPath;
 
-      if (entity) {
-        if ("ENTITY_TYPE" in entity) {
-          const entityType = entity.ENTITY_TYPE;
-          if (
-            entityType === ENTITY_TYPE.WIDGET ||
-            entityType === ENTITY_TYPE.ACTION ||
-            entityType === ENTITY_TYPE.JSACTION
-          ) {
-            entityInformation.entityType = entityType;
-          }
-        }
-        if (isActionEntity(entity))
-          entityInformation.entityId = entity.actionId;
-        if (isWidgetEntity(entity)) {
-          const isTriggerPath = entity.triggerPaths[propertyPath];
-          entityInformation.entityId = entity.widgetId;
-          if (isTriggerPath)
-            entityInformation.expectedType = AutocompleteDataType.FUNCTION;
-        }
-      }
-      entityInformation.propertyPath = propertyPath;
+    const entity = configTree[entityName];
+    if (!entity) return entityInformation;
+    if (!entity.ENTITY_TYPE) return entityInformation;
+    const entityType = entity.ENTITY_TYPE;
+    entityInformation.entityType = entityType;
+
+    if (isActionEntity(entity)) {
+      entityInformation.entityId = entity.actionId;
+    } else if (isWidgetEntity(entity)) {
+      const isTriggerPath = entity.triggerPaths[propertyPath];
+      entityInformation.entityId = entity.widgetId;
+      if (isTriggerPath)
+        entityInformation.expectedType = AutocompleteDataType.FUNCTION;
+      entityInformation.isTriggerPath = isTriggerPath;
+      entityInformation.widgetType = entity.type;
+    } else {
+      entityInformation.isTriggerPath = true;
     }
     return entityInformation;
   };
@@ -1264,16 +1324,8 @@ class CodeEditor extends Component<Props, State> {
         recentEntities: this.props.recentEntities,
         featureFlags: this.props.featureFlags,
         enableAIAssistance: this.AIEnabled,
-        update: this.props.input.onChange?.bind(this),
-        executeCommand: (payload: any) => {
-          this.props.executeCommand({
-            ...payload,
-            callback: (binding: string) => {
-              const value = this.editor.getValue() + binding;
-              this.updatePropertyValue(value, value.length);
-            },
-          });
-        },
+        focusEditor: this.focusEditor,
+        executeCommand: this.props.executeCommand,
       });
       if (hinterOpen) break;
     }
@@ -1282,7 +1334,6 @@ class CodeEditor extends Component<Props, State> {
 
   handleAutocompleteKeydown = (cm: CodeMirror.Editor, event: KeyboardEvent) => {
     const key = event.key;
-
     // Since selection from AutoComplete list is also done using the Enter keydown event
     // we need to return from here so that autocomplete selection works fine
     if (key === "Enter") return;
@@ -1310,6 +1361,7 @@ class CodeEditor extends Component<Props, State> {
     const token = cm.getTokenAt(cursor);
     let showAutocomplete = false;
     const prevChar = line[cursor.ch - 1];
+    const mode = cm.getModeAt(cursor);
 
     // If the token is a comment or string, do not show autocomplete
     if (token?.type && ["comment", "string"].includes(token.type)) return;
@@ -1323,7 +1375,9 @@ class CodeEditor extends Component<Props, State> {
       showAutocomplete = !!prevChar && /[a-zA-Z_0-9.]/.test(prevChar);
     } else if (key === "{") {
       /* Autocomplete for { should show up only when a user attempts to write {{}} and not a code block. */
-      showAutocomplete = prevChar === "{";
+      showAutocomplete =
+        mode.name != EditorModes.JAVASCRIPT || // for JSmode donot show autocomplete
+        prevChar === "{"; // for non JSmode mode show autocomplete. This will endup showing assistiveBindignHinter.
     } else if (key === "'" || key === '"') {
       /* Autocomplete for [ should show up only when a user attempts to write {['']} for Object property suggestions. */
       showAutocomplete = prevChar === "[";
@@ -1374,18 +1428,29 @@ class CodeEditor extends Component<Props, State> {
     marking.forEach((helper) => helper(editor, entityNavigationData, from, to));
   };
 
-  updatePropertyValue(value: string, cursor?: number) {
+  focusEditor(focusOnline?: number, chOffset = 0) {
+    const lineToFocus = isNumber(focusOnline)
+      ? focusOnline
+      : this.editor.lineCount() - 1;
+    const focusedLineContent = this.editor.getLine(lineToFocus);
+
+    this.editor.setCursor({
+      line: lineToFocus,
+      ch: focusedLineContent.length - chOffset,
+    });
+
+    this.setState({ isFocused: true }, () => {
+      this.handleAutocompleteVisibility(this.editor);
+    });
+  }
+
+  updatePropertyValue(value: string, focusOnline?: number, chOffset = 0) {
     this.editor.focus();
     if (value) {
       this.editor.setValue(value);
     }
-    this.editor.setCursor({
-      line: cursor || this.editor.lineCount() - 1,
-      ch: this.editor.getLine(this.editor.lineCount() - 1).length - 2,
-    });
-    this.setState({ isFocused: true }, () => {
-      this.handleAutocompleteVisibility(this.editor);
-    });
+
+    this.focusEditor(focusOnline, chOffset);
   }
 
   getErrors(dynamicData: DataTree, dataTreePath: string) {
@@ -1433,12 +1498,14 @@ class CodeEditor extends Component<Props, State> {
   };
 
   isBindingPromptOpen = () => {
+    const completionActive = _.get(this.editor, "state.completionActive");
+
     return (
       showBindingPrompt(
         this.showFeatures(),
         this.props.input.value,
         this.state.hinterOpen,
-      ) && !_.get(this.editor, "state.completionActive")
+      ) && !completionActive
     );
   };
 
@@ -1478,7 +1545,8 @@ class CodeEditor extends Component<Props, State> {
       evaluated = evaluatedValue;
 
     if (dataTreePath) {
-      evaluated = pathEvaluatedValue;
+      evaluated =
+        pathEvaluatedValue !== undefined ? pathEvaluatedValue : evaluated;
     }
     const entityInformation = this.getEntityInformation();
 
@@ -1497,7 +1565,10 @@ class CodeEditor extends Component<Props, State> {
     const showEvaluatedValue =
       this.showFeatures() &&
       (this.state.isDynamic || isInvalid) &&
-      !this.state.showAIWindow;
+      !this.state.showAIWindow &&
+      !this.state.peekOverlayProps &&
+      !this.editor.state.completionActive &&
+      !this.state.ternToolTipActive;
 
     return (
       <DynamicAutocompleteInputWrapper
@@ -1519,13 +1590,23 @@ class CodeEditor extends Component<Props, State> {
                 typeof this.props.input.value === "string"
                   ? this.props.input.value + "/"
                   : "/";
-              this.updatePropertyValue(newValue, newValue.length);
+              this.updatePropertyValue(newValue);
             }}
             size="sm"
             tabIndex={-1}
           >
             /
           </Button>
+        </div>
+
+        <div className="absolute bottom-[6px] right-[6px] z-4">
+          <AskAIButton
+            entity={entityInformation}
+            mode={this.props.mode}
+            onClick={() => {
+              this.setState({ showAIWindow: true });
+            }}
+          />
         </div>
 
         <EvaluatedValuePopup
@@ -1539,25 +1620,29 @@ class CodeEditor extends Component<Props, State> {
           expected={expected}
           hasError={isInvalid}
           hideEvaluatedValue={hideEvaluatedValue}
-          isOpen={showEvaluatedValue && !this.state.peekOverlayProps}
+          isOpen={showEvaluatedValue}
           popperPlacement={this.props.popperPlacement}
           popperZIndex={this.props.popperZIndex}
           theme={theme || EditorTheme.LIGHT}
           useValidationMessage={useValidationMessage}
         >
           <AIWindow
-            close={() => {
-              this.setState({ showAIWindow: false });
-            }}
             currentValue={this.props.input.value}
             dataTreePath={dataTreePath}
+            editor={this.editor}
             enableAIAssistance={this.AIEnabled}
+            entitiesForNavigation={this.props.entitiesForNavigation}
+            entity={entityInformation}
             isOpen={this.state.showAIWindow}
             mode={this.props.mode}
+            onOpenChanged={(showAIWindow: boolean) => {
+              this.setState({ showAIWindow });
+            }}
             triggerContext={this.props.expected}
             update={this.updateValueWithAIResponse}
           >
             <EditorWrapper
+              AIEnabled
               border={border}
               borderLess={borderLess}
               className={`${className} ${replayHighlightClass} ${
@@ -1575,6 +1660,7 @@ class CodeEditor extends Component<Props, State> {
               isNotHover={this.state.isFocused || this.state.isOpened}
               isRawView={this.props.isRawView}
               isReadOnly={this.props.isReadOnly}
+              mode={this.props.mode}
               onMouseMove={this.handleLintTooltip}
               onMouseOver={this.handleMouseMove}
               ref={this.editorWrapperRef}
@@ -1604,14 +1690,16 @@ class CodeEditor extends Component<Props, State> {
                 ref={this.codeEditorTarget}
                 tabIndex={0}
               >
-                <BindingPrompt
+                <CodeEditorSignPosting
                   editorTheme={this.props.theme}
-                  isAIEnabled={this.AIEnabled}
+                  forComp="editor"
                   isOpen={this.isBindingPromptOpen()}
+                  mode={this.props.mode}
                   promptMessage={this.props.promptMessage}
                   showLightningMenu={this.props.showLightningMenu}
                 />
               </div>
+
               {this.props.link && (
                 <a
                   className="linkStyles"
@@ -1651,6 +1739,7 @@ const mapStateToProps = (state: AppState, props: EditorProps) => ({
   featureFlags: selectFeatureFlags(state),
   datasourceTableKeys: getAllDatasourceTableKeys(state, props.dataTreePath),
   installedLibraries: selectInstalledLibraries(state),
+  focusedProperty: getFocusablePropertyPaneField(state),
 });
 
 const mapDispatchToProps = (dispatch: any) => ({
@@ -1659,6 +1748,8 @@ const mapDispatchToProps = (dispatch: any) => ({
   startingEntityUpdate: () => dispatch(startingEntityUpdate()),
   setCodeEditorLastFocus: (payload: CodeEditorFocusState) =>
     dispatch(setEditorFieldFocusAction(payload)),
+  setActiveField: (path: string) => dispatch(setActiveEditorField(path)),
+  resetActiveField: () => dispatch(resetActiveEditorField()),
 });
 
 export default Sentry.withProfiler(

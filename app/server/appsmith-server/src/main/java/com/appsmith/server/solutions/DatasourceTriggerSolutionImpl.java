@@ -1,11 +1,11 @@
 package com.appsmith.server.solutions;
 
+import com.appsmith.server.datasources.base.DatasourceService;
+import com.appsmith.server.datasourcestorages.base.DatasourceStorageService;
 import com.appsmith.server.helpers.PluginExecutorHelper;
+import com.appsmith.server.plugins.base.PluginService;
 import com.appsmith.server.services.AuthenticationValidator;
 import com.appsmith.server.services.DatasourceContextService;
-import com.appsmith.server.services.DatasourceService;
-import com.appsmith.server.services.DatasourceStorageService;
-import com.appsmith.server.services.PluginService;
 import com.appsmith.server.solutions.ce.DatasourceTriggerSolutionCEImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -23,7 +23,8 @@ public class DatasourceTriggerSolutionImpl extends DatasourceTriggerSolutionCEIm
             DatasourceStructureSolution datasourceStructureSolution,
             AuthenticationValidator authenticationValidator,
             DatasourceContextService datasourceContextService,
-            DatasourcePermission datasourcePermission) {
+            DatasourcePermission datasourcePermission,
+            EnvironmentPermission environmentPermission) {
         super(
                 datasourceService,
                 datasourceStorageService,
@@ -32,6 +33,7 @@ public class DatasourceTriggerSolutionImpl extends DatasourceTriggerSolutionCEIm
                 datasourceStructureSolution,
                 authenticationValidator,
                 datasourceContextService,
-                datasourcePermission);
+                datasourcePermission,
+                environmentPermission);
     }
 }

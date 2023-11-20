@@ -20,6 +20,30 @@ import {
 } from "@appsmith/constants/messages";
 import { FEATURE_FLAG } from "@appsmith/entities/FeatureFlag";
 
+// This function checks if the form is dirty
+// We needed this in the cases where datasources are created from APIs and the initial value
+// already has url set. If user presses back button, we need to show the confirmation dialog
+export const getIsFormDirty = (
+  isFormDirty: boolean,
+  formData: any,
+  isNewDatasource: boolean,
+  isRestPlugin: boolean,
+  currentEditingEnvId: string,
+) => {
+  const url = isRestPlugin
+    ? get(
+        formData,
+        `datastoreStorages.${currentEditingEnvId}.datasourceConfiguration.url`,
+        "",
+      )
+    : "";
+
+  if (!isFormDirty && isNewDatasource && isRestPlugin && url.length === 0) {
+    return true;
+  }
+  return isFormDirty;
+};
+
 export const getTrimmedData = (formData: any) => {
   const dataType = getType(formData);
   const isArrayorObject = (type: ReturnType<typeof getType>) =>
@@ -81,10 +105,19 @@ export const normalizeValues = (
 export const validate = (
   requiredFields: Record<string, FormConfigType>,
   values: any,
+  currentEnvId?: string,
 ) => {
   const errors = {} as any;
 
   Object.keys(requiredFields).forEach((fieldConfigProperty) => {
+    // Do not check for required fields if the field is not part of the current environment
+    if (
+      !!currentEnvId &&
+      currentEnvId.length > 0 &&
+      !fieldConfigProperty.includes(currentEnvId)
+    ) {
+      return;
+    }
     const fieldConfig = requiredFields[fieldConfigProperty];
     if (fieldConfig.controlType === "KEYVALUE_ARRAY") {
       const configProperty = (fieldConfig.configProperty as string).split(

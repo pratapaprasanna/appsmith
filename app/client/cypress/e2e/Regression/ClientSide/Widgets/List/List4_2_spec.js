@@ -14,7 +14,7 @@ describe("Container Widget Functionality", function () {
 
   it("1. ListWidget-Copy & Delete Verification", function () {
     //Copy Chart and verify all properties
-    _.propPane.CopyWidgetFromPropertyPane("List1");
+    _.propPane.CopyPasteWidgetFromPropertyPane("List1");
     _.propPane.DeleteWidgetFromPropertyPane("List1Copy");
     _.deployMode.DeployApp();
     // Verify the copied list widget is deleted
@@ -37,13 +37,13 @@ describe("Container Widget Functionality", function () {
     cy.get(widgetsPage.listWidget).should(
       "have.css",
       "background-color",
-      "rgb(126, 34, 206)",
+      "rgb(219, 234, 254)",
     );
     // Verify List Item Background Color
     cy.get(widgetsPage.itemContainerWidget).should(
       "have.css",
       "background-color",
-      "rgb(126, 34, 206)",
+      "rgb(219, 234, 254)",
     );
     _.deployMode.NavigateBacktoEditor();
   });
@@ -103,17 +103,11 @@ describe("Container Widget Functionality", function () {
   });
 
   it("6. Renaming the widget from Property pane and Entity explorer ", function () {
-    // Open Property pane
-    _.entityExplorer.SelectEntityByName("List1", "Widgets");
-
-    // Change the list widget name from property pane and Verify it
-    cy.widgetText(
-      "List2",
-      widgetsPage.listWidgetName,
-      widgetsPage.widgetNameSpan,
-    );
+    // Open Property pane & rename the list widget
+    _.propPane.RenameWidget("List1", "List2");
+    _.agHelper.Sleep(); //for renaming the widget
     // Change the list widget name from Entity Explorer
-    cy.renameEntity("List2", "List1");
+    _.entityExplorer.RenameEntityFromExplorer("List2", "List1", false);
     // Mouse over to list name
     _.entityExplorer.SelectEntityByName("List1");
 
@@ -126,6 +120,5 @@ describe("Container Widget Functionality", function () {
       "List1",
     );
     _.deployMode.DeployApp();
-    _.deployMode.NavigateBacktoEditor();
   });
 });

@@ -6,14 +6,15 @@ import com.appsmith.external.models.ActionDTO;
 import com.appsmith.external.models.BaseDomain;
 import com.appsmith.external.models.Datasource;
 import com.appsmith.external.models.DatasourceConfiguration;
-import com.appsmith.external.models.DatasourceStorage;
 import com.appsmith.external.models.DatasourceStorageDTO;
 import com.appsmith.external.models.JSValue;
 import com.appsmith.external.models.PluginType;
 import com.appsmith.external.models.Policy;
 import com.appsmith.external.plugins.PluginExecutor;
 import com.appsmith.server.acl.AclPermission;
+import com.appsmith.server.actioncollections.base.ActionCollectionService;
 import com.appsmith.server.constants.FieldName;
+import com.appsmith.server.datasources.base.DatasourceService;
 import com.appsmith.server.domains.ActionCollection;
 import com.appsmith.server.domains.Application;
 import com.appsmith.server.domains.ApplicationDetail;
@@ -33,50 +34,61 @@ import com.appsmith.server.domains.User;
 import com.appsmith.server.domains.Workspace;
 import com.appsmith.server.dtos.ActionCollectionDTO;
 import com.appsmith.server.dtos.ApplicationAccessDTO;
+import com.appsmith.server.dtos.ApplicationJson;
 import com.appsmith.server.dtos.ApplicationPagesDTO;
+import com.appsmith.server.dtos.InviteUsersDTO;
 import com.appsmith.server.dtos.PageDTO;
 import com.appsmith.server.dtos.UserHomepageDTO;
 import com.appsmith.server.dtos.WorkspaceApplicationsDTO;
 import com.appsmith.server.exceptions.AppsmithError;
 import com.appsmith.server.exceptions.AppsmithException;
+import com.appsmith.server.exports.internal.ExportApplicationService;
 import com.appsmith.server.helpers.MockPluginExecutor;
 import com.appsmith.server.helpers.PluginExecutorHelper;
 import com.appsmith.server.helpers.TextUtils;
+import com.appsmith.server.imports.internal.ImportApplicationService;
+import com.appsmith.server.jslibs.base.CustomJSLibService;
 import com.appsmith.server.migrations.ApplicationVersion;
+import com.appsmith.server.newactions.base.NewActionService;
+import com.appsmith.server.newpages.base.NewPageService;
+import com.appsmith.server.plugins.base.PluginService;
 import com.appsmith.server.repositories.ApplicationRepository;
 import com.appsmith.server.repositories.AssetRepository;
+import com.appsmith.server.repositories.CacheableRepositoryHelper;
+import com.appsmith.server.repositories.DatasourceRepository;
 import com.appsmith.server.repositories.NewPageRepository;
 import com.appsmith.server.repositories.PermissionGroupRepository;
 import com.appsmith.server.repositories.PluginRepository;
 import com.appsmith.server.repositories.UserRepository;
-import com.appsmith.server.services.ActionCollectionService;
 import com.appsmith.server.services.ApplicationService;
-import com.appsmith.server.services.CustomJSLibService;
-import com.appsmith.server.services.DatasourceService;
 import com.appsmith.server.services.LayoutActionService;
 import com.appsmith.server.services.LayoutCollectionService;
-import com.appsmith.server.services.NewActionService;
-import com.appsmith.server.services.NewPageService;
 import com.appsmith.server.services.PermissionGroupService;
-import com.appsmith.server.services.PluginService;
 import com.appsmith.server.services.SessionUserService;
-import com.appsmith.server.services.ThemeService;
 import com.appsmith.server.services.UserService;
 import com.appsmith.server.services.WorkspaceService;
 import com.appsmith.server.solutions.ApplicationFetcher;
-import com.appsmith.server.solutions.ImportExportApplicationService;
+import com.appsmith.server.solutions.ApplicationPermission;
+import com.appsmith.server.solutions.DatasourcePermission;
+import com.appsmith.server.solutions.EnvironmentPermission;
+import com.appsmith.server.solutions.PagePermission;
 import com.appsmith.server.solutions.ReleaseNotesService;
+import com.appsmith.server.solutions.UserAndAccessManagementService;
+import com.appsmith.server.themes.base.ThemeService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.core.io.ClassPathResource;
@@ -88,6 +100,9 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.multipart.FilePart;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextImpl;
 import org.springframework.security.test.context.support.WithUserDetails;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -149,12 +164,14 @@ public class ApplicationServiceCETest {
 
     static Plugin testPlugin = new Plugin();
     static Datasource testDatasource = new Datasource();
+    static Datasource testDatasource1 = new Datasource();
+
     static Application gitConnectedApp = new Application();
 
     @Autowired
     ApplicationService applicationService;
 
-    @Autowired
+    @Qualifier("applicationPageServiceCEImpl") @Autowired
     ApplicationPageServiceCE applicationPageService;
 
     @Autowired
@@ -203,7 +220,10 @@ public class ApplicationServiceCETest {
     PluginRepository pluginRepository;
 
     @Autowired
-    ImportExportApplicationService importExportApplicationService;
+    ImportApplicationService importApplicationService;
+
+    @Autowired
+    ExportApplicationService exportApplicationService;
 
     @Autowired
     ThemeService themeService;
@@ -229,14 +249,45 @@ public class ApplicationServiceCETest {
     @Autowired
     SessionUserService sessionUserService;
 
+    @Autowired
+    EnvironmentPermission environmentPermission;
+
+    @Autowired
+    PagePermission pagePermission;
+
+    @Autowired
+    DatasourcePermission datasourcePermission;
+
+    @Autowired
+    DatasourceRepository datasourceRepository;
+
+    @Autowired
+    ApplicationPermission applicationPermission;
+
+    @Autowired
+    UserAndAccessManagementService userAndAccessManagementService;
+
+    @Autowired
+    CacheableRepositoryHelper cacheableRepositoryHelper;
+
     String workspaceId;
     String defaultEnvironmentId;
+
+    private final String tempUserPassword = "tempUserPassword";
 
     @Autowired
     private AssetRepository assetRepository;
 
+    private <I> Mono<I> runAs(Mono<I> input, User user) {
+        log.info("Running as user: {}", user.getEmail());
+        return input.contextWrite((ctx) -> {
+            SecurityContext securityContext = new SecurityContextImpl(
+                    new UsernamePasswordAuthenticationToken(user, tempUserPassword, user.getAuthorities()));
+            return ctx.put(SecurityContext.class, Mono.just(securityContext));
+        });
+    }
+
     @BeforeEach
-    @WithUserDetails(value = "api_user")
     public void setup() {
 
         User currentUser = sessionUserService.getCurrentUser().block();
@@ -252,59 +303,99 @@ public class ApplicationServiceCETest {
         Workspace toCreate = new Workspace();
         toCreate.setName("ApplicationServiceTest");
 
-        if (workspaceId == null) {
-            Workspace workspace =
-                    workspaceService.create(toCreate, apiUser, Boolean.FALSE).block();
-            workspaceId = workspace.getId();
+        Set<String> beforeCreatingWorkspace =
+                cacheableRepositoryHelper.getPermissionGroupsOfUser(currentUser).block();
+        log.info("Permission Groups for User before creating workspace: {}", beforeCreatingWorkspace);
+        Workspace workspace =
+                workspaceService.create(toCreate, apiUser, Boolean.FALSE).block();
+        workspaceId = workspace.getId();
 
-            defaultEnvironmentId =
-                    workspaceService.getDefaultEnvironmentId(workspaceId).block();
+        defaultEnvironmentId = workspaceService
+                .getDefaultEnvironmentId(workspaceId, environmentPermission.getExecutePermission())
+                .block();
 
-            if (StringUtils.hasLength(gitConnectedApp.getId())) {
-                applicationPageService
-                        .deleteApplication(gitConnectedApp.getId())
-                        .block();
-            }
+        Application gitConnectedApp1 = new Application();
+        gitConnectedApp1.setWorkspaceId(workspaceId);
+        GitApplicationMetadata gitData = new GitApplicationMetadata();
+        gitData.setBranchName("testBranch");
+        gitData.setDefaultBranchName("testBranch");
+        gitData.setRepoName("testRepo");
+        gitData.setRemoteUrl("git@test.com:user/testRepo.git");
+        gitData.setRepoName("testRepo");
+        gitConnectedApp1.setGitApplicationMetadata(gitData);
+        // This will be altered in update app by branch test
+        gitConnectedApp1.setName("gitConnectedApp");
+        Application newGitConnectedApp = applicationPageService
+                .createApplication(gitConnectedApp1)
+                .flatMap(application -> {
+                    application.getGitApplicationMetadata().setDefaultApplicationId(application.getId());
+                    return applicationService.save(application);
+                })
+                .block();
 
-            gitConnectedApp = new Application();
-            gitConnectedApp.setWorkspaceId(workspaceId);
-            GitApplicationMetadata gitData = new GitApplicationMetadata();
-            gitData.setBranchName("testBranch");
-            gitData.setDefaultBranchName("testBranch");
-            gitData.setRepoName("testRepo");
-            gitData.setRemoteUrl("git@test.com:user/testRepo.git");
-            gitData.setRepoName("testRepo");
-            gitConnectedApp.setGitApplicationMetadata(gitData);
-            // This will be altered in update app by branch test
-            gitConnectedApp.setName("gitConnectedApp");
-            gitConnectedApp = applicationPageService
-                    .createApplication(gitConnectedApp)
-                    .flatMap(application -> {
-                        application.getGitApplicationMetadata().setDefaultApplicationId(application.getId());
-                        return applicationService.save(application);
-                    })
-                    // Assign the branchName to all the resources connected to the application
-                    .flatMap(application -> importExportApplicationService.exportApplicationById(
-                            application.getId(), gitData.getBranchName()))
-                    .flatMap(applicationJson -> importExportApplicationService.importApplicationInWorkspaceFromGit(
-                            workspaceId, applicationJson, gitConnectedApp.getId(), gitData.getBranchName()))
-                    .block();
+        // Assign the branchName to all the resources connected to the application
+        ApplicationJson gitConnectedApplicationJson = exportApplicationService
+                .exportApplicationById(newGitConnectedApp.getId(), gitData.getBranchName())
+                .block();
+        gitConnectedApp = importApplicationService
+                .importApplicationInWorkspaceFromGit(
+                        workspaceId, gitConnectedApplicationJson, newGitConnectedApp.getId(), gitData.getBranchName())
+                .block();
 
-            testPlugin = pluginService.findByPackageName("restapi-plugin").block();
+        testPlugin = pluginService.findByPackageName("restapi-plugin").block();
 
-            Datasource datasource = new Datasource();
-            datasource.setName("Clone App with action Test");
-            datasource.setPluginId(testPlugin.getId());
-            DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
-            datasourceConfiguration.setUrl("http://test.com");
-            datasource.setDatasourceConfiguration(datasourceConfiguration);
-            datasource.setWorkspaceId(workspaceId);
-            DatasourceStorage datasourceStorage = new DatasourceStorage(datasource, defaultEnvironmentId);
-            HashMap<String, DatasourceStorageDTO> storages = new HashMap<>();
-            storages.put(defaultEnvironmentId, new DatasourceStorageDTO(datasourceStorage));
-            datasource.setDatasourceStorages(storages);
-            testDatasource = datasourceService.create(datasource).block();
+        Datasource datasource = new Datasource();
+        datasource.setName("Clone App with action Test");
+        datasource.setPluginId(testPlugin.getId());
+        datasource.setWorkspaceId(workspaceId);
+        DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        datasourceConfiguration.setUrl("http://test.com");
+
+        HashMap<String, DatasourceStorageDTO> storages = new HashMap<>();
+        storages.put(
+                defaultEnvironmentId, new DatasourceStorageDTO(null, defaultEnvironmentId, datasourceConfiguration));
+        datasource.setDatasourceStorages(storages);
+        testDatasource = datasourceService.create(datasource).block();
+
+        String environmentId = workspaceService
+                .getDefaultEnvironmentId(workspaceId, environmentPermission.getExecutePermission())
+                .block();
+
+        Datasource datasource1 = new Datasource();
+        datasource1.setName("Clone App with action Test1");
+        datasource1.setPluginId(testPlugin.getId());
+        DatasourceConfiguration datasourceConfiguration1 = new DatasourceConfiguration();
+        datasourceConfiguration1.setUrl("http://test.com");
+        datasource1.setWorkspaceId(workspaceId);
+
+        HashMap<String, DatasourceStorageDTO> storages1 = new HashMap<>();
+        storages1.put(environmentId, new DatasourceStorageDTO(null, environmentId, datasourceConfiguration1));
+        datasource1.setDatasourceStorages(storages1);
+
+        testDatasource1 = datasourceService.create(datasource1).block();
+        Set<String> afterCreatingWorkspace =
+                cacheableRepositoryHelper.getPermissionGroupsOfUser(currentUser).block();
+        log.info("Permission Groups for User after creating workspace: {}", afterCreatingWorkspace);
+
+        log.info("Workspace ID: {}", workspaceId);
+        log.info("Workspace Role Ids: {}", workspace.getDefaultPermissionGroups());
+        log.info("Policy for created Workspace: {}", workspace.getPolicies());
+        log.info("Current User ID: {}", currentUser.getId());
+    }
+
+    @AfterEach
+    public void cleanup() {
+        User currentUser = sessionUserService.getCurrentUser().block();
+        if (!currentUser.getEmail().equals("api_user")) {
+            // Since no setup was done, hence no cleanup needs to happen
+            return;
         }
+        List<Application> deletedApplications = applicationService
+                .findByWorkspaceId(workspaceId, applicationPermission.getDeletePermission())
+                .flatMap(remainingApplication -> applicationPageService.deleteApplication(remainingApplication.getId()))
+                .collectList()
+                .block();
+        Workspace deletedWorkspace = workspaceService.archiveById(workspaceId).block();
     }
 
     private Mono<? extends BaseDomain> getArchivedResource(String id, Class<? extends BaseDomain> domainClass) {
@@ -1341,15 +1432,13 @@ public class ApplicationServiceCETest {
         Datasource datasource = new Datasource();
         datasource.setName("Public App Test");
         datasource.setPluginId(plugin.getId());
+        datasource.setWorkspaceId(workspaceId);
         DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
         datasourceConfiguration.setUrl("http://test.com");
-        datasource.setDatasourceConfiguration(datasourceConfiguration);
-        datasource.setWorkspaceId(workspaceId);
 
-        datasource.setDatasourceConfiguration(datasourceConfiguration);
-        DatasourceStorage datasourceStorage = new DatasourceStorage(datasource, defaultEnvironmentId);
         HashMap<String, DatasourceStorageDTO> storages = new HashMap<>();
-        storages.put(defaultEnvironmentId, new DatasourceStorageDTO(datasourceStorage));
+        storages.put(
+                defaultEnvironmentId, new DatasourceStorageDTO(null, defaultEnvironmentId, datasourceConfiguration));
         datasource.setDatasourceStorages(storages);
 
         Datasource savedDatasource = datasourceService.create(datasource).block();
@@ -1452,6 +1541,151 @@ public class ApplicationServiceCETest {
                             .containsAll(Set.of(manageActionPolicy, readActionPolicy, executeActionPolicy));
                 })
                 .verifyComplete();
+    }
+
+    @Test
+    @WithUserDetails(value = "api_user")
+    public void
+            testPublicApp_whenMultiplePublicAppsInWorkspaceAndOneAccessRevoked_otherPublicAppRetainsAccessToWorkspaceLevelResources() {
+        Workspace toCreate = new Workspace();
+        toCreate.setName("Multiple Public Apps Test");
+        Workspace workspace = workspaceService.create(toCreate).block();
+        String workspaceId = workspace.getId();
+
+        String defaultEnvironmentId = workspaceService
+                .getDefaultEnvironmentId(workspaceId, environmentPermission.getExecutePermission())
+                .block();
+
+        // Create common datasource
+        Plugin plugin = pluginService.findByPackageName("restapi-plugin").block();
+        Datasource datasource = new Datasource();
+        datasource.setName("Public App Test");
+        datasource.setPluginId(plugin.getId());
+        DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
+        datasourceConfiguration.setUrl("http://test.com");
+        datasource.setDatasourceConfiguration(datasourceConfiguration);
+        datasource.setWorkspaceId(workspaceId);
+        datasource.setDatasourceConfiguration(datasourceConfiguration);
+
+        HashMap<String, DatasourceStorageDTO> storages = new HashMap<>();
+        storages.put(
+                defaultEnvironmentId, new DatasourceStorageDTO(null, defaultEnvironmentId, datasourceConfiguration));
+        datasource.setDatasourceStorages(storages);
+
+        Datasource savedDatasource = datasourceService.create(datasource).block();
+
+        // Create first app to make public
+        Application application = new Application();
+        application.setName("firstAppToMakePublic");
+
+        Application createdApplication = applicationPageService
+                .createApplication(application, workspaceId)
+                .block();
+
+        String pageId = createdApplication.getPages().get(0).getId();
+
+        ActionDTO action = new ActionDTO();
+        action.setName("Public App Test action");
+        action.setPageId(pageId);
+        action.setDatasource(savedDatasource);
+        ActionConfiguration actionConfiguration = new ActionConfiguration();
+        actionConfiguration.setHttpMethod(HttpMethod.GET);
+        action.setActionConfiguration(actionConfiguration);
+        layoutActionService.createSingleAction(action, Boolean.FALSE).block();
+
+        // Check datasource before making app public
+        PermissionGroup publicPermissionGroup =
+                permissionGroupService.getPublicPermissionGroup().block();
+
+        Datasource datasourceBeforePublicShare =
+                datasourceService.findById(savedDatasource.getId()).block();
+
+        Optional<Policy> policyBeforeOptional = datasourceBeforePublicShare.getPolicies().stream()
+                .filter(policy -> EXECUTE_DATASOURCES.getValue().equals(policy.getPermission()))
+                .findFirst();
+
+        Assertions.assertThat(policyBeforeOptional.isPresent()).isTrue();
+        Assertions.assertThat(policyBeforeOptional.get().getPermissionGroups())
+                .doesNotContain(publicPermissionGroup.getId());
+
+        // Make first application public
+        ApplicationAccessDTO applicationAccessDTO = new ApplicationAccessDTO();
+        applicationAccessDTO.setPublicAccess(true);
+        applicationService
+                .changeViewAccess(createdApplication.getId(), applicationAccessDTO)
+                .block();
+
+        Datasource datasourceAfterPublicShare =
+                datasourceService.findById(savedDatasource.getId()).block();
+
+        Optional<Policy> policyAfterOptional = datasourceAfterPublicShare.getPolicies().stream()
+                .filter(policy -> EXECUTE_DATASOURCES.getValue().equals(policy.getPermission()))
+                .findFirst();
+
+        Assertions.assertThat(policyAfterOptional.isPresent()).isTrue();
+        Assertions.assertThat(policyAfterOptional.get().getPermissionGroups()).contains(publicPermissionGroup.getId());
+
+        // Create a second app
+        Application application2 = new Application();
+        application2.setName("secondAppToMakePublic");
+
+        Application createdApplication2 = applicationPageService
+                .createApplication(application2, workspaceId)
+                .block();
+
+        String pageId2 = createdApplication2.getPages().get(0).getId();
+
+        ActionDTO action2 = new ActionDTO();
+        action2.setName("Public App Test action");
+        action2.setPageId(pageId2);
+        action2.setDatasource(savedDatasource);
+        ActionConfiguration actionConfiguration2 = new ActionConfiguration();
+        actionConfiguration2.setHttpMethod(HttpMethod.GET);
+        action2.setActionConfiguration(actionConfiguration2);
+        layoutActionService.createSingleAction(action2, Boolean.FALSE).block();
+
+        // Make second application public
+        ApplicationAccessDTO applicationAccessDTO2 = new ApplicationAccessDTO();
+        applicationAccessDTO2.setPublicAccess(true);
+        applicationService
+                .changeViewAccess(createdApplication2.getId(), applicationAccessDTO2)
+                .block();
+
+        // Now revoke public access from first app
+        applicationAccessDTO.setPublicAccess(false);
+        applicationService
+                .changeViewAccess(createdApplication.getId(), applicationAccessDTO)
+                .block();
+
+        // Check that datasource still has execute access
+        Datasource datasourceAfterRevokeOnePublicShare =
+                datasourceService.findById(savedDatasource.getId()).block();
+
+        Optional<Policy> policyAfterRevokeOneOptional = datasourceAfterRevokeOnePublicShare.getPolicies().stream()
+                .filter(policy -> EXECUTE_DATASOURCES.getValue().equals(policy.getPermission()))
+                .findFirst();
+
+        Assertions.assertThat(policyAfterRevokeOneOptional.isPresent()).isTrue();
+        Assertions.assertThat(policyAfterRevokeOneOptional.get().getPermissionGroups())
+                .contains(publicPermissionGroup.getId());
+
+        // Now revoke public access from second app
+        applicationAccessDTO2.setPublicAccess(false);
+        applicationService
+                .changeViewAccess(createdApplication2.getId(), applicationAccessDTO2)
+                .block();
+
+        // Check that datasource now does NOT have execute access
+        Datasource datasourceAfterRevokeAllPublicShare =
+                datasourceService.findById(savedDatasource.getId()).block();
+
+        Optional<Policy> policyAfterRevokeAllOptional = datasourceAfterRevokeAllPublicShare.getPolicies().stream()
+                .filter(policy -> EXECUTE_DATASOURCES.getValue().equals(policy.getPermission()))
+                .findFirst();
+
+        Assertions.assertThat(policyAfterRevokeAllOptional.isPresent()).isTrue();
+        Assertions.assertThat(policyAfterRevokeAllOptional.get().getPermissionGroups())
+                .doesNotContain(publicPermissionGroup.getId());
     }
 
     @Test
@@ -3064,15 +3298,13 @@ public class ApplicationServiceCETest {
         Datasource datasource = new Datasource();
         datasource.setName("Cloned App Test");
         datasource.setPluginId(plugin.getId());
+        datasource.setWorkspaceId(workspaceId);
         DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
         datasourceConfiguration.setUrl("http://test.com");
-        datasource.setDatasourceConfiguration(datasourceConfiguration);
-        datasource.setWorkspaceId(workspaceId);
 
-        datasource.setDatasourceConfiguration(datasourceConfiguration);
-        DatasourceStorage datasourceStorage = new DatasourceStorage(datasource, defaultEnvironmentId);
         HashMap<String, DatasourceStorageDTO> storages = new HashMap<>();
-        storages.put(defaultEnvironmentId, new DatasourceStorageDTO(datasourceStorage));
+        storages.put(
+                defaultEnvironmentId, new DatasourceStorageDTO(null, defaultEnvironmentId, datasourceConfiguration));
         datasource.setDatasourceStorages(storages);
 
         Datasource savedDatasource = datasourceService.create(datasource).block();
@@ -3299,15 +3531,13 @@ public class ApplicationServiceCETest {
         Datasource datasource = new Datasource();
         datasource.setName("Public View App Test");
         datasource.setPluginId(plugin.getId());
+        datasource.setWorkspaceId(workspaceId);
         DatasourceConfiguration datasourceConfiguration = new DatasourceConfiguration();
         datasourceConfiguration.setUrl("http://test.com");
-        datasource.setDatasourceConfiguration(datasourceConfiguration);
-        datasource.setWorkspaceId(workspaceId);
 
-        datasource.setDatasourceConfiguration(datasourceConfiguration);
-        DatasourceStorage datasourceStorage = new DatasourceStorage(datasource, defaultEnvironmentId);
         HashMap<String, DatasourceStorageDTO> storages = new HashMap<>();
-        storages.put(defaultEnvironmentId, new DatasourceStorageDTO(datasourceStorage));
+        storages.put(
+                defaultEnvironmentId, new DatasourceStorageDTO(null, defaultEnvironmentId, datasourceConfiguration));
         datasource.setDatasourceStorages(storages);
 
         Datasource savedDatasource = datasourceService.create(datasource).block();
@@ -3775,9 +4005,9 @@ public class ApplicationServiceCETest {
         testApplication.setGitApplicationMetadata(gitData);
         Application application = applicationPageService
                 .createApplication(testApplication)
-                .flatMap(application1 -> importExportApplicationService
+                .flatMap(application1 -> exportApplicationService
                         .exportApplicationById(gitConnectedApp.getId(), gitData.getBranchName())
-                        .flatMap(applicationJson -> importExportApplicationService.importApplicationInWorkspaceFromGit(
+                        .flatMap(applicationJson -> importApplicationService.importApplicationInWorkspaceFromGit(
                                 workspaceId, applicationJson, application1.getId(), gitData.getBranchName())))
                 .block();
 
@@ -4042,5 +4272,219 @@ public class ApplicationServiceCETest {
                     assertThat(clonedApplication.getForkingEnabled()).isNull();
                 })
                 .verifyComplete();
+    }
+
+    @Test
+    @WithUserDetails(value = "api_user")
+    public void publishApplication_noPageEditPermissions() {
+        String gitAppPageId = gitConnectedApp.getPages().get(0).getId();
+        NewPage gitAppPage = newPageRepository.findById(gitAppPageId).block();
+        Set<Policy> existingPolicies = gitAppPage.getPolicies();
+        /*
+         * Git connected application has 2 pages.
+         * We take away all Manage Page permissions for 2nd page.
+         * Now since, no one has the permissions to Edit the 2nd page, teh application deployment will fail.
+         */
+        Set<Policy> newPoliciesWithoutEdit = existingPolicies.stream()
+                .filter(policy -> !policy.getPermission()
+                        .equals(pagePermission.getEditPermission().getValue()))
+                .collect(Collectors.toSet());
+        gitAppPage.setPolicies(newPoliciesWithoutEdit);
+        NewPage updatedGitAppPage = newPageRepository.save(gitAppPage).block();
+        StepVerifier.create(applicationPageService.publish(gitConnectedApp.getId(), null, true))
+                .expectErrorMatches(throwable -> throwable instanceof AppsmithException
+                        && throwable
+                                .getMessage()
+                                .equals(AppsmithError.UNABLE_TO_DEPLOY_MISSING_PERMISSION.getMessage(
+                                        "page", gitAppPageId)))
+                .verify();
+        updatedGitAppPage.setPolicies(existingPolicies);
+        NewPage setPoliciesBack = newPageRepository.save(updatedGitAppPage).block();
+    }
+
+    @Test
+    @WithUserDetails(value = "api_user")
+    public void cloneApplication_noPageEditPermissions() {
+        int existingApplicationCount = applicationService
+                .findAllApplicationsByWorkspaceId(workspaceId)
+                .collectList()
+                .block()
+                .size();
+        String gitAppPageId = gitConnectedApp.getPages().get(0).getId();
+        NewPage gitAppPage = newPageRepository.findById(gitAppPageId).block();
+        Set<Policy> existingPolicies = gitAppPage.getPolicies();
+        /*
+         * Git connected application has 2 pages.
+         * We take away all Manage Page permissions for 2nd page.
+         * Now since, no one has the permissions to Edit the 2nd page, the application cloning will fail.
+         */
+        Set<Policy> newPoliciesWithoutEdit = existingPolicies.stream()
+                .filter(policy -> !policy.getPermission()
+                        .equals(pagePermission.getEditPermission().getValue()))
+                .collect(Collectors.toSet());
+        gitAppPage.setPolicies(newPoliciesWithoutEdit);
+        NewPage updatedGitAppPage = newPageRepository.save(gitAppPage).block();
+        StepVerifier.create(applicationPageService.cloneApplication(gitConnectedApp.getId(), null))
+                .expectErrorMatches(throwable -> throwable instanceof AppsmithException
+                        && throwable
+                                .getMessage()
+                                .equals(AppsmithError.APPLICATION_NOT_CLONED_MISSING_PERMISSIONS.getMessage(
+                                        "page", gitAppPageId)))
+                .verify();
+        updatedGitAppPage.setPolicies(existingPolicies);
+        NewPage setPoliciesBack = newPageRepository.save(updatedGitAppPage).block();
+
+        Mono<List<Application>> applicationsInWorkspace =
+                applicationService.findAllApplicationsByWorkspaceId(workspaceId).collectList();
+        /*
+         * Check that no applications have been created in the Target Workspace
+         * This can be checked by comparing it with the existing count of applications in the Workspace.
+         */
+        StepVerifier.create(applicationsInWorkspace)
+                .assertNext(applications -> assertThat(applications).hasSize(existingApplicationCount));
+    }
+
+    @Test
+    @WithUserDetails(value = "api_user")
+    public void cloneApplication_noDatasourceCreateActionPermissions() {
+        String gitAppPageId = gitConnectedApp.getPages().get(0).getId();
+        int existingApplicationCount = applicationService
+                .findAllApplicationsByWorkspaceId(workspaceId)
+                .collectList()
+                .block()
+                .size();
+
+        ActionDTO action = new ActionDTO();
+        action.setName("validAction");
+        action.setPageId(gitAppPageId);
+        action.setExecuteOnLoad(true);
+        ActionConfiguration actionConfiguration = new ActionConfiguration();
+        actionConfiguration.setHttpMethod(HttpMethod.GET);
+        action.setActionConfiguration(actionConfiguration);
+        action.setDatasource(testDatasource1);
+        ActionDTO createdAction =
+                layoutActionService.createSingleAction(action, Boolean.FALSE).block();
+
+        Set<Policy> existingPolicies = testDatasource1.getPolicies();
+        /*
+         * The created Workspace has a Datasource. And we will remove the Create Datasource Action permisison.
+         */
+        Set<Policy> newPoliciesWithoutEdit = existingPolicies.stream()
+                .filter(policy -> !policy.getPermission()
+                        .equals(datasourcePermission.getActionCreatePermission().getValue()))
+                .collect(Collectors.toSet());
+        testDatasource1.setPolicies(newPoliciesWithoutEdit);
+        Datasource updatedTestDatasource =
+                datasourceRepository.save(testDatasource1).block();
+        StepVerifier.create(applicationPageService.cloneApplication(gitConnectedApp.getId(), null))
+                .expectErrorMatches(throwable -> throwable instanceof AppsmithException
+                        && throwable
+                                .getMessage()
+                                .equals(AppsmithError.APPLICATION_NOT_CLONED_MISSING_PERMISSIONS.getMessage(
+                                        "datasource", testDatasource1.getId())))
+                .verify();
+        updatedTestDatasource.setPolicies(existingPolicies);
+        Datasource setPoliciesBack =
+                datasourceRepository.save(updatedTestDatasource).block();
+
+        ActionDTO deletedAction = layoutActionService
+                .deleteUnpublishedAction(createdAction.getId())
+                .block();
+
+        Mono<List<Application>> applicationsInWorkspace =
+                applicationService.findAllApplicationsByWorkspaceId(workspaceId).collectList();
+        /*
+         * Check that no applications have been created in the Target Workspace
+         * This can be checked by comparing it with the existing count of applications in the Workspace.
+         */
+        StepVerifier.create(applicationsInWorkspace)
+                .assertNext(applications -> assertThat(applications).hasSize(existingApplicationCount));
+    }
+
+    @Test
+    @WithUserDetails(value = "api_user")
+    public void testUpdateApplication_modifiedByShouldUpdate() {
+        String testName = "testUpdateApplication_modifiedByShouldUpdate";
+
+        User user1 = new User();
+        user1.setEmail(testName + "@appsmith.com");
+        user1.setPassword(tempUserPassword);
+        User createdUser = userService.create(user1).block();
+
+        List<PermissionGroup> defaultWorkspaceRoles = permissionGroupRepository
+                .findByDefaultDomainIdAndDefaultDomainType(workspaceId, Workspace.class.getSimpleName())
+                .collectList()
+                .block();
+
+        PermissionGroup administratorRole = defaultWorkspaceRoles.stream()
+                .filter(role -> role.getName().startsWith(ADMINISTRATOR))
+                .findFirst()
+                .get();
+        InviteUsersDTO inviteUsersDTO = new InviteUsersDTO();
+        inviteUsersDTO.setPermissionGroupId(administratorRole.getId());
+        inviteUsersDTO.setUsernames(List.of(createdUser.getUsername()));
+        userAndAccessManagementService.inviteUsers(inviteUsersDTO, testName).block();
+
+        Application application = new Application();
+        application.setName(testName);
+        application.setWorkspaceId(workspaceId);
+        Application createdApplication =
+                applicationPageService.createApplication(application).block();
+
+        Application updateNameOfApplication = new Application();
+        updateNameOfApplication.setName(testName + "_editedBy_" + createdUser.getUsername());
+
+        Application updatedNameOfApplication = runAs(
+                        applicationService.update(createdApplication.getId(), updateNameOfApplication), createdUser)
+                .block();
+
+        Application applicationPostNameUpdate =
+                applicationRepository.findById(createdApplication.getId()).block();
+
+        assertThat(applicationPostNameUpdate.getName()).isEqualTo(testName + "_editedBy_" + createdUser.getUsername());
+        assertThat(applicationPostNameUpdate.getModifiedBy()).isEqualTo(createdUser.getUsername());
+    }
+
+    @Test
+    @WithUserDetails(value = "api_user")
+    public void testCreatePage_lastModifiedByShouldGetChanged() {
+        String testName = "testSavedLastEditInformation";
+
+        User user1 = new User();
+        user1.setEmail(testName + "@appsmith.com");
+        user1.setPassword(tempUserPassword);
+        User createdUser = userService.create(user1).block();
+
+        List<PermissionGroup> defaultWorkspaceRoles = permissionGroupRepository
+                .findByDefaultDomainIdAndDefaultDomainType(workspaceId, Workspace.class.getSimpleName())
+                .collectList()
+                .block();
+
+        PermissionGroup administratorRole = defaultWorkspaceRoles.stream()
+                .filter(role -> role.getName().startsWith(ADMINISTRATOR))
+                .findFirst()
+                .get();
+        InviteUsersDTO inviteUsersDTO = new InviteUsersDTO();
+        inviteUsersDTO.setPermissionGroupId(administratorRole.getId());
+        inviteUsersDTO.setUsernames(List.of(createdUser.getUsername()));
+        userAndAccessManagementService.inviteUsers(inviteUsersDTO, testName).block();
+
+        Application application = new Application();
+        application.setName(testName);
+        application.setWorkspaceId(workspaceId);
+        Application createdApplication =
+                applicationPageService.createApplication(application).block();
+
+        PageDTO pageDTO = new PageDTO();
+        pageDTO.setName(testName);
+        pageDTO.setApplicationId(createdApplication.getId());
+        PageDTO createdPageDTO =
+                runAs(applicationPageService.createPage(pageDTO), createdUser).block();
+
+        Application applicationPostLastEdit =
+                applicationRepository.findById(createdApplication.getId()).block();
+
+        assertThat(applicationPostLastEdit.getPages()).hasSize(2);
+        assertThat(applicationPostLastEdit.getModifiedBy()).isEqualTo(createdUser.getUsername());
     }
 }

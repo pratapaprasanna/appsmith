@@ -24,6 +24,13 @@ const initialState: UsersReduxState = {
   featureFlag: {
     data: DEFAULT_FEATURE_FLAG_VALUE,
     isFetched: false,
+    isFetching: true,
+  },
+  productAlert: {
+    config: {
+      dismissed: false,
+      snoozeTill: new Date(),
+    },
   },
 };
 
@@ -167,6 +174,14 @@ const usersReducer = createReducer(initialState, {
       photoId: action.payload.photoId,
     },
   }),
+  [ReduxActionTypes.FETCH_FEATURE_FLAGS_INIT]: (state: UsersReduxState) => ({
+    ...state,
+    featureFlag: {
+      ...state.featureFlag,
+      isFetched: false,
+      isFetching: true,
+    },
+  }),
   [ReduxActionTypes.FETCH_FEATURE_FLAGS_SUCCESS]: (
     state: UsersReduxState,
     action: ReduxAction<FeatureFlags>,
@@ -175,6 +190,7 @@ const usersReducer = createReducer(initialState, {
     featureFlag: {
       data: action.payload,
       isFetched: true,
+      isFetching: false,
     },
   }),
   [ReduxActionErrorTypes.FETCH_FEATURE_FLAGS_ERROR]: (
@@ -184,6 +200,24 @@ const usersReducer = createReducer(initialState, {
     featureFlag: {
       data: {},
       isFetched: true,
+      isFetching: false,
+    },
+  }),
+  [ReduxActionTypes.FETCH_PRODUCT_ALERT_SUCCESS]: (
+    state: UsersReduxState,
+    action: ReduxAction<ProductAlert>,
+  ) => ({
+    ...state,
+    productAlert: action.payload,
+  }),
+  [ReduxActionTypes.UPDATE_PRODUCT_ALERT_CONFIG]: (
+    state: UsersReduxState,
+    action: ReduxAction<ProductAlertConfig>,
+  ): UsersReduxState => ({
+    ...state,
+    productAlert: {
+      ...state.productAlert,
+      config: action.payload,
     },
   }),
 });
@@ -195,6 +229,26 @@ export interface PropertyPanePositionConfig {
     top: number;
   };
 }
+
+export interface ProductAlert {
+  messageId: string;
+  title: string;
+  message: string;
+  canDismiss: boolean;
+  remindLaterDays: number;
+  learnMoreLink?: string;
+}
+
+export interface ProductAlertConfig {
+  dismissed: boolean;
+  snoozeTill: Date;
+}
+
+export interface ProductAlertState {
+  message?: ProductAlert;
+  config: ProductAlertConfig;
+}
+
 export interface UsersReduxState {
   current?: User;
   list: User[];
@@ -209,7 +263,9 @@ export interface UsersReduxState {
   featureFlag: {
     isFetched: boolean;
     data: FeatureFlags;
+    isFetching: boolean;
   };
+  productAlert: ProductAlertState;
 }
 
 export default usersReducer;

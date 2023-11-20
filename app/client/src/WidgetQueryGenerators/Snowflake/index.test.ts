@@ -1,3 +1,4 @@
+import { DatasourceConnectionMode } from "entities/Datasource";
 import Snowflake from ".";
 
 describe("Snowflake WidgetQueryGenerator", () => {
@@ -26,6 +27,62 @@ describe("Snowflake WidgetQueryGenerator", () => {
         searchableColumn: "title",
         columns: [],
         primaryColumn: "genres",
+        connectionMode: DatasourceConnectionMode.READ_WRITE,
+      },
+      initialValues,
+    );
+
+    const res = `SELECT
+  *
+FROM
+  someTable
+WHERE
+  title LIKE '%{{data_table.searchText || \"\"}}%'
+ORDER BY
+  {{data_table.sortOrder.column || 'genres'}} {{data_table.sortOrder.order || 'ASC' ? \"\" : \"DESC\"}}
+LIMIT
+  {{data_table.pageSize}}
+OFFSET
+  {{(data_table.pageNo - 1) * data_table.pageSize}}`;
+
+    expect(expr).toEqual([
+      {
+        name: "Select_someTable",
+        type: "select",
+        dynamicBindingPathList: [
+          {
+            key: "body",
+          },
+        ],
+        payload: {
+          pluginSpecifiedTemplates: [{ value: false }],
+          body: res,
+        },
+      },
+    ]);
+  });
+
+  test("should build select form data correctly with read permissions", () => {
+    const expr = Snowflake.build(
+      {
+        select: {
+          limit: "data_table.pageSize",
+          where: 'data_table.searchText || ""',
+          offset: "(data_table.pageNo - 1) * data_table.pageSize",
+          orderBy: "data_table.sortOrder.column",
+          sortOrder: "data_table.sortOrder.order || 'ASC'",
+        },
+        totalRecord: false,
+      },
+      {
+        tableName: "someTable",
+        datasourceId: "someId",
+        aliases: [{ name: "someColumn1", alias: "someColumn1" }],
+        widgetId: "someWidgetId",
+        searchableColumn: "title",
+        columns: [],
+        primaryColumn: "genres",
+        connectionMode: DatasourceConnectionMode.READ_ONLY,
       },
       initialValues,
     );
@@ -80,6 +137,7 @@ OFFSET
         searchableColumn: "title",
         columns: [],
         primaryColumn: "",
+        connectionMode: DatasourceConnectionMode.READ_WRITE,
       },
       initialValues,
     );
@@ -127,8 +185,40 @@ OFFSET
         aliases: [{ name: "someColumn1", alias: "someColumn1" }],
         widgetId: "someWidgetId",
         searchableColumn: "title",
-        columns: ["id", "name"],
+        columns: [
+          { name: "id", type: "number", isSelected: true },
+          { name: "name", type: "number", isSelected: true },
+        ],
         primaryColumn: "",
+        connectionMode: DatasourceConnectionMode.READ_WRITE,
+      },
+      initialValues,
+    );
+
+    expect(expr).toEqual([]);
+  });
+
+  test("should not build update form data without read write ", () => {
+    const expr = Snowflake.build(
+      {
+        update: {
+          value: `update_form.fieldState'`,
+          where: `"id" = {{data_table.selectedRow.id}}`,
+        },
+        totalRecord: false,
+      },
+      {
+        tableName: "someTable",
+        datasourceId: "someId",
+        aliases: [{ name: "someColumn1", alias: "someColumn1" }],
+        widgetId: "someWidgetId",
+        searchableColumn: "title",
+        columns: [
+          { name: "id", type: "number", isSelected: true },
+          { name: "name", type: "number", isSelected: true },
+        ],
+        primaryColumn: "id",
+        connectionMode: DatasourceConnectionMode.READ_ONLY,
       },
       initialValues,
     );
@@ -151,8 +241,13 @@ OFFSET
         aliases: [{ name: "someColumn1", alias: "someColumn1" }],
         widgetId: "someWidgetId",
         searchableColumn: "title",
-        columns: ["id", "name"],
+        columns: [
+          { name: "id", type: "number", isSelected: true },
+          { name: "name", type: "number", isSelected: true },
+        ],
         primaryColumn: "id",
+        connectionMode: DatasourceConnectionMode.READ_WRITE,
+        dataIdentifier: "id",
       },
       initialValues,
     );
@@ -189,8 +284,39 @@ OFFSET
         aliases: [{ name: "someColumn1", alias: "someColumn1" }],
         widgetId: "someWidgetId",
         searchableColumn: "title",
-        columns: ["id", "name"],
+        columns: [
+          { name: "id", type: "number", isSelected: true },
+          { name: "name", type: "number", isSelected: true },
+        ],
         primaryColumn: "",
+        connectionMode: DatasourceConnectionMode.READ_WRITE,
+      },
+      initialValues,
+    );
+    expect(expr).toEqual([]);
+  });
+
+  test("should not build insert form data without read write permissions", () => {
+    const expr = Snowflake.build(
+      {
+        create: {
+          value: `update_form.fieldState`,
+        },
+        totalRecord: false,
+      },
+      {
+        tableName: "someTable",
+        datasourceId: "someId",
+        // ignore columns
+        aliases: [{ name: "someColumn1", alias: "someColumn1" }],
+        widgetId: "someWidgetId",
+        searchableColumn: "title",
+        columns: [
+          { name: "id", type: "number", isSelected: true },
+          { name: "name", type: "number", isSelected: true },
+        ],
+        primaryColumn: "id",
+        connectionMode: DatasourceConnectionMode.READ_ONLY,
       },
       initialValues,
     );
@@ -212,8 +338,12 @@ OFFSET
         aliases: [{ name: "someColumn1", alias: "someColumn1" }],
         widgetId: "someWidgetId",
         searchableColumn: "title",
-        columns: ["id", "name"],
+        columns: [
+          { name: "id", type: "number", isSelected: true },
+          { name: "name", type: "number", isSelected: true },
+        ],
         primaryColumn: "id",
+        connectionMode: DatasourceConnectionMode.READ_WRITE,
       },
       initialValues,
     );

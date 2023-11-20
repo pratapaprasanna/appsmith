@@ -1,6 +1,8 @@
 /* eslint-disable cypress/no-unnecessary-waiting */
 /* eslint-disable cypress/no-assigning-return-values */
 
+import EditorNavigation, { SidebarButton } from "./Pages/EditorNavigation";
+
 require("cy-verify-downloads").addCustomCommand();
 require("cypress-file-upload");
 import { ObjectsRegistry } from "../support/Objects/Registry";
@@ -52,15 +54,11 @@ Cypress.Commands.add("testSaveDeleteDatasource", () => {
 });
 
 Cypress.Commands.add("NavigateToDatasourceEditor", () => {
-  cy.get(explorer.addDBQueryEntity).last().click({ force: true });
   dataSources.NavigateToDSCreateNew();
 });
 
 Cypress.Commands.add("NavigateToActiveDatasources", () => {
-  cy.get(explorer.addDBQueryEntity).last().click({ force: true });
-  cy.get(pages.integrationActiveTab)
-    .should("be.visible")
-    .click({ force: true });
+  EditorNavigation.ViaSidebar(SidebarButton.Data);
 });
 
 Cypress.Commands.add("testDatasource", (expectedRes = true) => {
@@ -84,39 +82,6 @@ Cypress.Commands.add("testSaveDatasource", (expectedRes = true) => {
   //   .last()
   //   .click();
 });
-
-Cypress.Commands.add(
-  "fillMongoDatasourceForm",
-  (shouldAddTrailingSpaces = false) => {
-    const hostAddress = shouldAddTrailingSpaces
-      ? datasourceFormData["mongo-host"] + "  "
-      : datasourceFormData["mongo-host"];
-    // const databaseName = shouldAddTrailingSpaces
-    //   ? datasourceFormData["mongo-databaseName"] + "  "
-    //   : datasourceFormData["mongo-databaseName"];
-    cy.get(datasourceEditor["host"]).clear().type(hostAddress);
-    cy.get(datasourceEditor.port)
-      .clear()
-      .type(datasourceFormData["mongo-port"]);
-    //cy.get(datasourceEditor["port"]).type(datasourceFormData["mongo-port"]);
-    //cy.get(datasourceEditor["selConnectionType"]).click();
-    //cy.contains(datasourceFormData["connection-type"]).click();
-    //cy.get(datasourceEditor["defaultDatabaseName"]).type(databaseName);//is optional hence removing
-    cy.get(datasourceEditor["databaseName"])
-      .clear()
-      .type(datasourceFormData["mongo-databaseName"]);
-    // cy.get(datasourceEditor["username"]).type(
-    //   datasourceFormData["mongo-username"],
-    // );
-    // cy.get(datasourceEditor["password"]).type(
-    //   datasourceFormData["mongo-password"],
-    // );
-    // cy.get(datasourceEditor["authenticationAuthtype"]).click();
-    // cy.contains(datasourceFormData["mongo-authenticationAuthtype"]).click({
-    //   force: true,
-    // });
-  },
-);
 
 Cypress.Commands.add(
   "fillPostgresDatasourceForm",
@@ -294,7 +259,7 @@ Cypress.Commands.add(
 );
 
 Cypress.Commands.add("createPostgresDatasource", () => {
-  cy.NavigateToDatasourceEditor();
+  dataSources.NavigateToDSCreateNew();
   cy.get(datasourceEditor.PostgreSQL).click({ force: true });
   cy.fillPostgresDatasourceForm();
   cy.testSaveDatasource();
@@ -302,13 +267,12 @@ Cypress.Commands.add("createPostgresDatasource", () => {
 
 // this can be modified further when google sheets automation is done.
 Cypress.Commands.add("createGoogleSheetsDatasource", () => {
-  cy.NavigateToDatasourceEditor();
+  dataSources.NavigateToDSCreateNew();
   cy.get(datasourceEditor.GoogleSheets).click();
 });
 
 Cypress.Commands.add("deleteDatasource", (datasourceName) => {
-  cy.NavigateToQueryEditor();
-  dataSources.DeleteDatasouceFromActiveTab(datasourceName);
+  dataSources.DeleteDatasourceFromWithinDS(datasourceName);
 });
 
 Cypress.Commands.add("renameDatasource", (datasourceName) => {
@@ -332,14 +296,6 @@ Cypress.Commands.add("createAmazonS3Datasource", () => {
   cy.get(datasourceEditor.AmazonS3).click();
   cy.fillAmazonS3DatasourceForm();
   cy.testSaveDatasource();
-});
-
-Cypress.Commands.add("fillMongoDatasourceFormWithURI", () => {
-  cy.xpath(datasourceEditor["mongoUriDropdown"]).click().wait(500);
-  cy.xpath(datasourceEditor["mongoUriYes"]).click().wait(500);
-  cy.xpath(datasourceEditor["mongoUriInput"]).type(
-    datasourceFormData["mongo-uri"],
-  );
 });
 
 Cypress.Commands.add("ReconnectDatasource", (datasource) => {
@@ -372,8 +328,7 @@ Cypress.Commands.add("createNewAuthApiDatasource", (renameVal) => {
 
 Cypress.Commands.add("deleteAuthApiDatasource", (renameVal) => {
   //Navigate to active datasources panel.
-  cy.get(pages.addEntityAPI).last().should("be.visible").click({ force: true });
-  dataSources.DeleteDatasouceFromActiveTab(renameVal);
+  dataSources.DeleteDatasourceFromWithinDS(renameVal);
 });
 
 Cypress.Commands.add("createGraphqlDatasource", (datasourceName) => {

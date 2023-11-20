@@ -9,11 +9,16 @@ import {
   entityItems,
   assertHelper,
 } from "../../../../support/Objects/ObjectsCore";
+import { featureFlagIntercept } from "../../../../support/Objects/FeatureFlags";
 
 describe("Boolean & Enum Datatype tests", function () {
   let dsName: any, query: string;
 
   before("Create Postgress DS, Add dsl, Appply theme", () => {
+    featureFlagIntercept({
+      ab_gsheet_schema_enabled: true,
+      ab_mock_mongo_schema_enabled: true,
+    });
     agHelper.AddDsl("Datatypes/BooleanEnumDTdsl");
     appSettings.OpenPaneAndChangeThemeColors(-18, -20);
     dataSources.CreateDataSource("Postgres");
@@ -31,20 +36,11 @@ describe("Boolean & Enum Datatype tests", function () {
     dataSources.CreateQueryFromOverlay(dsName, query, "createTable");
     dataSources.RunQuery();
 
-    entityExplorer.ExpandCollapseEntity("Datasources");
-    entityExplorer.ExpandCollapseEntity(dsName); //Clicking Create Query from Active DS is already expanding ds
-    entityExplorer.ActionContextMenuByEntityName({
-      entityNameinLeftSidebar: dsName,
-      action: "Refresh",
-    });
-    agHelper.AssertElementVisible(
-      entityExplorer._entityNameInExplorer("public.boolenumtypes"),
-    );
-
     //Select query:
-    entityExplorer.ActionTemplateMenuByEntityName(
+    dataSources.createQueryWithDatasourceSchemaTemplate(
+      dsName,
       "public.boolenumtypes",
-      "SELECT",
+      "Select",
     );
     agHelper.RenameWithInPane("selectRecords");
     dataSources.RunQuery();
@@ -75,7 +71,6 @@ describe("Boolean & Enum Datatype tests", function () {
     dataSources.CreateQueryFromOverlay(dsName, query, "dropEnum");
 
     entityExplorer.ExpandCollapseEntity("Queries/JS", false);
-    entityExplorer.ExpandCollapseEntity(dsName, false);
   });
 
   it("2. Inserting record - boolenumtypes", () => {
@@ -83,12 +78,12 @@ describe("Boolean & Enum Datatype tests", function () {
     deployMode.DeployApp();
     table.WaitForTableEmpty(); //asserting table is empty before inserting!
     agHelper.ClickButton("Run InsertQuery");
-    agHelper.AssertElementVisible(locators._modal);
+    agHelper.AssertElementVisibility(locators._modal);
     agHelper.SelectDropDown("Monday");
     agHelper.ToggleSwitch("Areweworking");
     agHelper.ClickButton("Insert");
     agHelper.AssertElementAbsence(locators._toastMsg); //Assert that Insert did not fail
-    agHelper.AssertElementVisible(locators._spanButton("Run InsertQuery"));
+    agHelper.AssertElementVisibility(locators._buttonByText("Run InsertQuery"));
     table.ReadTableRowColumnData(0, 0, "v1", 2000).then(($cellData) => {
       expect($cellData).to.eq("1"); //asserting serial column is inserting fine in sequence
     });
@@ -102,11 +97,11 @@ describe("Boolean & Enum Datatype tests", function () {
 
   it("3. Inserting another record - boolenumtypes", () => {
     agHelper.ClickButton("Run InsertQuery");
-    agHelper.AssertElementVisible(locators._modal);
+    agHelper.AssertElementVisibility(locators._modal);
     agHelper.SelectDropDown("Saturday");
     agHelper.ToggleSwitch("Areweworking", "uncheck");
     agHelper.ClickButton("Insert");
-    agHelper.AssertElementVisible(locators._spanButton("Run InsertQuery"));
+    agHelper.AssertElementVisibility(locators._buttonByText("Run InsertQuery"));
     table.ReadTableRowColumnData(1, 0, "v1", 2000).then(($cellData) => {
       expect($cellData).to.eq("2"); //asserting serial column is inserting fine in sequence
     });
@@ -120,11 +115,11 @@ describe("Boolean & Enum Datatype tests", function () {
 
   it("4. Inserting another record - boolenumtypes", () => {
     agHelper.ClickButton("Run InsertQuery");
-    agHelper.AssertElementVisible(locators._modal);
+    agHelper.AssertElementVisibility(locators._modal);
     agHelper.SelectDropDown("Friday");
     agHelper.ToggleSwitch("Areweworking", "uncheck");
     agHelper.ClickButton("Insert");
-    agHelper.AssertElementVisible(locators._spanButton("Run InsertQuery"));
+    agHelper.AssertElementVisibility(locators._buttonByText("Run InsertQuery"));
     table.ReadTableRowColumnData(2, 0, "v1", 2000).then(($cellData) => {
       expect($cellData).to.eq("3"); //asserting serial column is inserting fine in sequence
     });
@@ -139,11 +134,11 @@ describe("Boolean & Enum Datatype tests", function () {
   it("5. Updating record - boolenumtypes", () => {
     table.SelectTableRow(2);
     agHelper.ClickButton("Run UpdateQuery");
-    agHelper.AssertElementVisible(locators._modal);
+    agHelper.AssertElementVisibility(locators._modal);
     agHelper.ToggleSwitch("Areweworking", "check");
     agHelper.ClickButton("Update");
     agHelper.AssertElementAbsence(locators._toastMsg); //Assert that Update did not fail
-    agHelper.AssertElementVisible(locators._spanButton("Run UpdateQuery"));
+    agHelper.AssertElementVisibility(locators._buttonByText("Run UpdateQuery"));
     table.ReadTableRowColumnData(2, 0, "v1", 2000).then(($cellData) => {
       expect($cellData).to.eq("3"); //asserting serial column is inserting fine in sequence
     });
@@ -202,18 +197,18 @@ describe("Boolean & Enum Datatype tests", function () {
 
     //Deleting all records from table
     agHelper.GetNClick(locators._deleteIcon);
-    agHelper.AssertElementVisible(locators._spanButton("Run InsertQuery"));
+    agHelper.AssertElementVisibility(locators._buttonByText("Run InsertQuery"));
     agHelper.Sleep(2000);
     table.WaitForTableEmpty();
   });
 
   it("8. Inserting another record (to check serial column) - boolenumtypes", () => {
     agHelper.ClickButton("Run InsertQuery");
-    agHelper.AssertElementVisible(locators._modal);
+    agHelper.AssertElementVisibility(locators._modal);
     agHelper.SelectDropDown("Wednesday");
     agHelper.ToggleSwitch("Areweworking", "check");
     agHelper.ClickButton("Insert");
-    agHelper.AssertElementVisible(locators._spanButton("Run InsertQuery"));
+    agHelper.AssertElementVisibility(locators._buttonByText("Run InsertQuery"));
     table.ReadTableRowColumnData(0, 0, "v1", 2000).then(($cellData) => {
       expect($cellData).to.eq("4"); //asserting serial column is inserting fine in sequence
     });
@@ -238,20 +233,9 @@ describe("Boolean & Enum Datatype tests", function () {
         expect($cellData).to.eq("0"); //Success response for dropped table!
       });
       entityExplorer.ExpandCollapseEntity("Queries/JS", false);
-      entityExplorer.ExpandCollapseEntity("Datasources");
-      entityExplorer.ExpandCollapseEntity(dsName);
-      entityExplorer.ActionContextMenuByEntityName({
-        entityNameinLeftSidebar: dsName,
-        action: "Refresh",
-      });
-      agHelper.AssertElementAbsence(
-        entityExplorer._entityNameInExplorer("public.boolenumtypes"),
-      );
-      entityExplorer.ExpandCollapseEntity(dsName, false);
-      entityExplorer.ExpandCollapseEntity("Datasources", false);
 
       //Delete queries
-      dataSources.DeleteDatasouceFromWinthinDS(dsName, 409); //Since all queries exists
+      dataSources.DeleteDatasourceFromWithinDS(dsName, 409); //Since all queries exists
       entityExplorer.ExpandCollapseEntity("Queries/JS");
       entityExplorer.DeleteAllQueriesForDB(dsName);
 
@@ -259,7 +243,7 @@ describe("Boolean & Enum Datatype tests", function () {
       deployMode.DeployApp();
       deployMode.NavigateBacktoEditor();
       entityExplorer.ExpandCollapseEntity("Queries/JS");
-      dataSources.DeleteDatasouceFromWinthinDS(dsName, 200);
+      dataSources.DeleteDatasourceFromWithinDS(dsName, 200);
     },
   );
 });
