@@ -11,8 +11,6 @@ on:
       - Dockerfile
 
 jobs:
-  platform-backend-tests:
-    uses: ./.github/workflows/platform-backend-tests.yml
 
   docker-image:
     uses: ./.github/workflows/build-docker-image-test.yml
