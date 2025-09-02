@@ -20,4 +20,4 @@ jobs:
     with:
       platforms: "linux/arm64,linux/amd64"
       push: true
-      image-label: "${GITHUB_REF_NAME//\//-}"
+      image-label: ${{ github.ref_name }}
