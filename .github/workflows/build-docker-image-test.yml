@@ -1,0 +1,147 @@
+name: Build Docker Image
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git reference to checkout
+        required: false
+        type: string
+      platforms:
+        description: Comma-separated list of platforms
+        required: false
+        type: string
+        default: "linux/arm64,linux/amd64"
+      push:
+        description: Whether to push the image
+        required: false
+        type: boolean
+        default: true
+      image-tag:
+        description: Custom image tag
+        required: false
+        type: string
+      image-label:
+        description: Custom image label
+        required: false
+        type: string
+      image-suffix:
+        description: Suffix to add to repository name (e.g., '-dp' for deploy preview)
+        required: false
+        type: string
+        default: ""
+    outputs:
+      image-name:
+        description: Full image name with tag
+        value: ${{ jobs.build-docker-image.outputs.image-name }}
+      image-tag:
+        description: Image tag only
+        value: ${{ jobs.build-docker-image.outputs.image-tag }}
+      image-repository:
+        description: Image repository name (without tag)
+        value: ${{ jobs.build-docker-image.outputs.image-repository }}
+      image-digest:
+        description: Image digest
+        value: ${{ jobs.build-docker-image.outputs.image-digest }}
+
+jobs:
+  build-docker-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      image-name: ${{ steps.image_info.outputs.full_name }}
+      image-tag: ${{ steps.image_info.outputs.label }}
+      image-repository: ${{ steps.image_info.outputs.repository }}
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Install Task
+        run: |
+          curl -sSfL https://github.com/go-task/task/releases/download/v3.44.0/task_linux_amd64.tar.gz \
+            | sudo tar -xz -C /usr/local/bin task
+          task --version
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/package.json
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Build frontend
+        run: task fe:build
+        env:
+          VITE_SEGMENT_WRITE_KEY: ${{ secrets.VITE_SEGMENT_WRITE_KEY }}
+          VITE_VAPI_PUBLIC_KEY: ${{ secrets.VITE_VAPI_PUBLIC_KEY }}
+          VITE_VAPI_ASSISTANT_ID: ${{ secrets.VITE_VAPI_ASSISTANT_ID }}
+
+      - name: Install Depot CLI
+        uses: depot/setup-action@v1
+
+      # The info.json is served over the /info endpoint that helps us check what version is running in a deployment
+      - name: Generate info.json
+        run: |
+          mkdir -p extra
+          jq -n \
+            --arg sha "$GITHUB_SHA" \
+            --arg ref "$GITHUB_REF" \
+            --arg timestamp "$(date -u +%FT%TZ)" \
+            '
+              {
+                "GITHUB_SHA": $sha,
+                "GITHUB_REF": $ref,
+                "timestamp": $timestamp
+              }
+            ' > frontend/dist/info.json
+
+      - name: Prepare Docker image info
+        id: image_info
+        run: |
+          set -euo pipefail
+          org="${{ vars.DOCKER_HUB_ORGANIZATION }}"
+          repo="$(basename ${{ github.repository }})${{ inputs.image-suffix }}"
+
+          if [ -n "${{ inputs.image-tag }}" ]; then
+            label="${{ inputs.image-tag }}"
+          elif [ -n "${{ inputs.image-label }}" ]; then
+            label="${{ inputs.image-label }}"
+          else
+            label="${GITHUB_REF_NAME//\//-}"
+          fi
+
+          full_name="${org}/${repo}:${label}"
+
+          echo "org=${org}" | tee -a "$GITHUB_OUTPUT"
+          echo "repo=${repo}" | tee -a "$GITHUB_OUTPUT"
+          echo "label=${label}" | tee -a "$GITHUB_OUTPUT"
+          echo "full_name=${full_name}" | tee -a "$GITHUB_OUTPUT"
+          echo "repository=${org}/${repo}" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Build Docker image with Depot
+        id: build
+        uses: depot/build-push-action@v1
+        with:
+          project: 6djp6x2154
+          context: .
+          push: ${{ inputs.push }}
+          platforms: ${{ inputs.platforms }}
+          tags: ${{ steps.image_info.outputs.full_name }}

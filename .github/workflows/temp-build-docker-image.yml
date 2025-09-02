@@ -1,0 +1,169 @@
+name: Deploy Preview
+
+on:
+  # This workflow is only triggered by the `/build-deploy-preview` command dispatch
+  repository_dispatch:
+    types:
+      - build-deploy-preview-command
+
+jobs:
+  setup-comments:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      comment-id: ${{ steps.determine-comment-id.outputs.comment-id }}
+
+    steps:
+      # Ensure there's a single persistent PR comment for Deploy Preview status
+      - name: Find existing Deploy Preview status comment
+        id: find-comment
+        uses: peter-evans/find-comment@v3
+        with:
+          issue-number: ${{ github.event.client_payload.pull_request.number }}
+          body-includes: "<!-- appsmith-v2-dp-status -->"
+
+      - name: Create Deploy Preview status comment (building)
+        if: ${{ steps.find-comment.outputs.comment-id == '' }}
+        id: create-status
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          issue-number: ${{ github.event.client_payload.pull_request.number }}
+          body: |
+            <!-- appsmith-v2-dp-status -->
+            Building deploy preview for PR #${{ github.event.client_payload.pull_request.number }}...
+            Workflow run: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>
+
+      - name: Update Deploy Preview status comment (building)
+        if: ${{ steps.find-comment.outputs.comment-id != '' }}
+        id: update-status
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          edit-mode: replace
+          body: |
+            <!-- appsmith-v2-dp-status -->
+            Building deploy preview for PR #${{ github.event.client_payload.pull_request.number }}...
+            Workflow run: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>
+
+      - name: Determine Deploy Preview comment id
+        id: determine-comment-id
+        run: |
+          set -euo pipefail
+          CID="${{ steps.create-status.outputs.comment-id }}"
+          if [ -z "$CID" ]; then CID="${{ steps.update-status.outputs.comment-id }}"; fi
+          if [ -z "$CID" ]; then CID="${{ steps.find-comment.outputs.comment-id }}"; fi
+          echo "comment-id=$CID" >> $GITHUB_OUTPUT
+
+  build-docker-image:
+    uses: ./.github/workflows/tmp-build-docker-image.yml
+    with:
+      ref: "refs/pull/${{ github.event.client_payload.pull_request.number }}/merge"
+      platforms: "linux/amd64"
+      push: true
+      image-label: "${{ github.event.client_payload.pull_request.number }}"
+
+  deploy-preview:
+    runs-on: ubuntu-latest
+    needs: [setup-comments, build-docker-image]
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout cloud deployment
+        uses: actions/checkout@v5
+        with:
+          repository: appsmithorg/cloud-deployment
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Install kubectl
+        run: |
+          set -o errexit
+          curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.23.6/bin/linux/amd64/kubectl
+          sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+          kubectl version || true
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.DP_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.DP_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Install helm
+        run: |
+          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+          chmod 700 get_helm.sh
+          ./get_helm.sh
+          helm version
+
+      - name: Deploy the docker image into the UATX cluster
+        run: |
+          set -o errexit
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          PR_NUMBER="${{ github.event.client_payload.pull_request.number }}"
+          DB_URL_WITHOUT_DB_NAME="${{ secrets.DP_DB_URL_WITHOUT_DB_NAME }}"
+          EFS_FILE_SYSTEM_ID="${{ secrets.EFS_FILE_SYSTEM_ID }}"
+          DB_NAME="v2dp${PR_NUMBER}"
+          echo "creating the DP database"
+          if ! psql "${DB_URL_WITHOUT_DB_NAME}/postgres" -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1; then
+            psql "${DB_URL_WITHOUT_DB_NAME}/postgres" -c "CREATE DATABASE \"${DB_NAME}\""
+          else
+            echo "Database ${DB_NAME} already exists"
+          fi
+
+          aws eks update-kubeconfig --region ap-south-1 --name uatx-cluster
+          cd charts/appsmith-v2
+          helm dependency build
+
+          helm upgrade --install v2dp${PR_NUMBER} . \
+          --namespace v2dp${PR_NUMBER} \
+          --create-namespace \
+          --set ingress.enabled=true \
+          --set ingress.hosts[0].host="v2dp${PR_NUMBER}.dp.appsmith.com" \
+          --set ingress.hosts[0].path="/" \
+          --set ingress.hosts[0].pathType="Prefix" \
+          --set image.repository="${org}/${repo}-dp" \
+          --set image.tag="${label}" \
+          --set secretData.ENVIRONMENT="development" \
+          --set secretData.DEPLOYMENT_KUBERNETES_NAMESPACE="v2dp${PR_NUMBER}" \
+          --set secretData.DB_URL="${DB_URL_WITHOUT_DB_NAME}/v2dp${PR_NUMBER}" \
+          --set secretData.BASE_URL="https://v2dp${PR_NUMBER}.dp.appsmith.com" \
+          --set secretData.DEPLOYMENT_DOCKER_BUILD_PVC_NAME="v2dp${PR_NUMBER}-appsmith-v2-efs" \
+          --set secretData.DEPLOYMENT_DOCKER_PUSH_SECRET_NAME="v2dp${PR_NUMBER}-appsmith-v2-docker-push-config" \
+          --set secretData.DEPLOYMENT_DOCKER_BUILD_SECRET_NAME="v2dp${PR_NUMBER}-appsmith-v2-depot-secret" \
+          --set efs.dpfileSystemPath="${EFS_FILE_SYSTEM_ID}:/v2/${PR_NUMBER}" \
+          --set envFrom[0].secretRef.name="v2dp${PR_NUMBER}-appsmith-v2-secret" \
+          -f staging.values.yaml
+
+      - name: Update PR comment - Deploy preview ready
+        if: ${{ success() }}
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          comment-id: ${{ needs.setup-comments.outputs.comment-id }}
+          edit-mode: replace
+          body: |
+            <!-- appsmith-v2-dp-status -->
+            Deploy preview is ready for PR #${{ github.event.client_payload.pull_request.number }}.
+            URL: https://v2dp${{ github.event.client_payload.pull_request.number }}.dp.appsmith.com
+            Workflow run: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>
+
+      - name: Update PR comment - Deploy preview failed
+        if: ${{ failure() }}
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          comment-id: ${{ needs.setup-comments.outputs.comment-id }}
+          edit-mode: replace
+          body: |
+            <!-- appsmith-v2-dp-status -->
+            Deploy preview failed for PR #${{ github.event.client_payload.pull_request.number }}.
+            Check logs: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>
+
+      - name: Update PR comment - Deploy preview cancelled
+        if: ${{ cancelled() }}
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          comment-id: ${{ needs.setup-comments.outputs.comment-id }}
+          edit-mode: replace
+          body: |
+            <!-- appsmith-v2-dp-status -->
+            Deploy preview was cancelled for PR #${{ github.event.client_payload.pull_request.number }}.
+            Workflow run: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>

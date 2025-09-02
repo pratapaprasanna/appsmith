@@ -1,0 +1,23 @@
+name: Docker Image
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - backend/**
+      - frontend/**
+      - Dockerfile
+
+jobs:
+  platform-backend-tests:
+    uses: ./.github/workflows/platform-backend-tests.yml
+
+  docker-image:
+    uses: ./.github/workflows/build-docker-image-test.yml
+    needs: platform-backend-tests
+    with:
+      platforms: "linux/arm64,linux/amd64"
+      push: true
+      image-label: "${GITHUB_REF_NAME//\//-}"
