@@ -14,7 +14,6 @@ jobs:
 
   docker-image:
     uses: ./.github/workflows/build-docker-image-test.yml
-    needs: platform-backend-tests
     with:
       platforms: "linux/arm64,linux/amd64"
       push: true
